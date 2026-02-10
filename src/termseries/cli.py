@@ -13,6 +13,7 @@ from termseries._render import _output_png, _render_png
 from termseries._terminal import _parse_ratio
 from termseries._tui import _run_interactive
 from termseries._csv_source import fetch_csv_series
+from termseries._ha_source import _detect_unit, fetch_ha_series
 from termseries._types import ColorCycle, LastPeriod, Mode, YahooPeriod
 from termseries.yahoo import fetch_yahoo_series
 
@@ -111,6 +112,52 @@ def csv_cmd(
         value_unit=unit,
     )
     labels = [Path(f).stem for f in files]
+    _output_png(png, labels, opts["ratio"], last.value, copy=opts["copy"])
+
+
+@app.command()
+def ha(
+    ctx: typer.Context,
+    entities: Annotated[
+        list[str], typer.Argument(help="HA entity IDs (e.g. sensor.temperature)")
+    ],
+    last: Annotated[
+        LastPeriod, typer.Option(help="Show last N period")
+    ] = LastPeriod.d7,
+    unit: Annotated[
+        str | None, typer.Option(help="Value unit (auto-detect if omitted)")
+    ] = None,
+) -> None:
+    """Plot sensor data from a Home Assistant instance.
+
+    Requires HASS_URL and HASS_TOKEN environment variables.
+    """
+    opts = ctx.obj
+    resolved_unit = unit if unit is not None else _detect_unit(entities[0])
+
+    if opts["interactive"]:
+        _run_interactive(
+            entities,
+            period_choices=[p.value for p in LastPeriod],
+            period=last.value,
+            ratio=opts["ratio"],
+            mode=opts["mode"],
+            colors=opts["colors"],
+            fetch_fn=fetch_ha_series,
+            value_unit=resolved_unit,
+        )
+        raise typer.Exit()
+
+    data = fetch_ha_series(entities, last.value)
+    png = _render_png(
+        data,
+        opts["ratio"],
+        last.value,
+        color_cycle=opts["colors"],
+        mode=opts["mode"],
+        value_unit=resolved_unit,
+    )
+    labels = list(data.keys())
     _output_png(png, labels, opts["ratio"], last.value, copy=opts["copy"])
 
 

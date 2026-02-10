@@ -112,7 +112,12 @@ def _read_csv(path: str) -> TimeSeries:
 
 _LAST_DELTAS: dict[str, timedelta | None] = {
     "all": None,
+    "1h": timedelta(hours=1),
+    "3h": timedelta(hours=3),
+    "6h": timedelta(hours=6),
+    "12h": timedelta(hours=12),
     "1d": timedelta(days=1),
+    "2d": timedelta(days=2),
     "7d": timedelta(days=7),
     "30d": timedelta(days=30),
     "90d": timedelta(days=90),

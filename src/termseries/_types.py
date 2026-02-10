@@ -44,7 +44,12 @@ class YahooPeriod(str, Enum):
 
 class LastPeriod(str, Enum):
     all = "all"
+    h1 = "1h"
+    h3 = "3h"
+    h6 = "6h"
+    h12 = "12h"
     d1 = "1d"
+    d2 = "2d"
     d7 = "7d"
     d30 = "30d"
     d90 = "90d"

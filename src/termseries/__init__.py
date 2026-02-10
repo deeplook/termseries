@@ -29,8 +29,14 @@ from termseries._csv_source import (
     _read_csv,
     fetch_csv_series,
 )
+from termseries._ha_source import (
+    _detect_unit,
+    _fetch_ha_entity,
+    _ha_request,
+    fetch_ha_series,
+)
 from termseries._types import ColorCycle, LastPeriod, Mode, TimeSeries, YahooPeriod
-from termseries.cli import app, csv_cmd, demo, main, yahoo
+from termseries.cli import app, csv_cmd, demo, ha, main, yahoo
 from termseries.yahoo import _fetch_closes, fetch_yahoo_series
 
 __all__ = [
@@ -48,6 +54,11 @@ __all__ = [
     "fetch_yahoo_series",
     "_fetch_closes",
     "fetch_csv_series",
+    "fetch_ha_series",
+    "_ha_request",
+    "_fetch_ha_entity",
+    "_detect_unit",
+    "ha",
     "_read_csv",
     "_parse_timestamp",
     "_filter_last",

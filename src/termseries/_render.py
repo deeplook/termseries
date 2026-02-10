@@ -100,7 +100,7 @@ def _render_png(
         ax.plot(xs, ys, marker="o", linewidth=2, label=f"{names[0]}/{names[1]}")  # type: ignore[arg-type]
     else:
         for name, points in series.items():
-            xs = [dt.date() for dt, _ in points]
+            xs = [dt for dt, _ in points]
             ys = [close for _, close in points]
             if mode == "indexed" and ys:
                 base = ys[0]
