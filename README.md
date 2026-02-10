@@ -5,9 +5,10 @@
 ![License](https://img.shields.io/github/license/deeplook/termseries)
 ![CI](https://img.shields.io/github/actions/workflow/status/deeplook/termseries/ci.yml)
 
-Show timeseries data in the terminal using matplotlib. Renders high-quality PNG
-charts inline (Kitty, iTerm2, Sixel) or saves to file, with an optional
-interactive Textual TUI.
+Show timeseries data in the terminal using matplotlib. Plot stock prices from
+Yahoo Finance or any numeric timeseries from local CSV files. Renders
+high-quality PNG charts inline (Kitty, iTerm2, Sixel) or saves to file, with an
+optional interactive Textual TUI.
 
 ## Installation
 
@@ -44,19 +45,49 @@ termseries yahoo -c TSLA AAPL
 
 # Interactive TUI
 termseries -i yahoo TSLA
+
+# --- CSV files ---
+
+# Plot a local CSV (two columns: timestamp, value)
+termseries csv /path/to/sensor.csv
+
+# Multiple files, last 7 days, with a custom unit label
+termseries csv temp.csv humidity.csv --last 7d --unit '°C'
+
+# Interactive TUI with CSV data
+termseries -i csv sensor.csv
 ```
 
 ## Features
 
+- **Multiple data sources**: Yahoo Finance (`yahoo`) for stocks, local CSV files
+  (`csv`) for any numeric timeseries (sensors, metrics, etc.)
 - **Multiple chart modes**: absolute, indexed (rebased to 100%), log, drawdown,
   daily returns, relative (price ratio)
 - **Terminal image protocols**: auto-detects Kitty, iTerm2, Sixel; falls back
   to writing PNG files
 - **Interactive TUI**: built with [Textual](https://textual.textualize.io/) --
-  dropdowns for period, ratio, mode, colors, plus ticker input
+  dropdowns for period, ratio, mode, colors, plus ticker/file input
 - **Clipboard copy**: `-c` flag or Ctrl+Y in TUI (macOS, Windows, Linux)
 - **Configurable**: aspect ratio (`--ratio`), color cycle (`--colors`),
   dark/light detection
+
+## CSV File Format
+
+The `csv` subcommand expects two-column CSV files (timestamp, value). Header
+rows are auto-detected and skipped. Timestamps can be ISO 8601 strings or Unix
+epochs. Blank lines and NaN/Inf values are silently skipped.
+
+```csv
+2024-01-01T00:00:00Z,20.5
+2024-01-02T00:00:00Z,21.0
+2024-01-03T00:00:00Z,22.1
+```
+
+Each file becomes one series labelled by its filename (without extension). The
+`--last` option filters to a time window from the most recent data point:
+`all` (default), `1d`, `7d`, `30d`, `90d`, `1y`. The `--unit` option sets the
+y-axis label (default: `value`).
 
 ## Shared Options
 

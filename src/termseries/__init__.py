@@ -23,8 +23,14 @@ from termseries._terminal import (
     _print_sixel_png,
 )
 from termseries._tui import _run_interactive
-from termseries._types import ColorCycle, Mode, TimeSeries, YahooPeriod
-from termseries.cli import app, demo, main, yahoo
+from termseries._csv_source import (
+    _filter_last,
+    _parse_timestamp,
+    _read_csv,
+    fetch_csv_series,
+)
+from termseries._types import ColorCycle, LastPeriod, Mode, TimeSeries, YahooPeriod
+from termseries.cli import app, csv_cmd, demo, main, yahoo
 from termseries.yahoo import _fetch_closes, fetch_yahoo_series
 
 __all__ = [
@@ -33,12 +39,18 @@ __all__ = [
     "Mode",
     "ColorCycle",
     "YahooPeriod",
+    "LastPeriod",
     "app",
     "main",
     "yahoo",
+    "csv_cmd",
     "demo",
     "fetch_yahoo_series",
     "_fetch_closes",
+    "fetch_csv_series",
+    "_read_csv",
+    "_parse_timestamp",
+    "_filter_last",
     "_render_png",
     "_output_png",
     "_run_interactive",

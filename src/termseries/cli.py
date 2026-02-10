@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -11,7 +12,8 @@ import typer
 from termseries._render import _output_png, _render_png
 from termseries._terminal import _parse_ratio
 from termseries._tui import _run_interactive
-from termseries._types import ColorCycle, Mode, YahooPeriod
+from termseries._csv_source import fetch_csv_series
+from termseries._types import ColorCycle, LastPeriod, Mode, YahooPeriod
 from termseries.yahoo import fetch_yahoo_series
 
 app = typer.Typer(help="Render time-series data as terminal plots.")
@@ -71,6 +73,45 @@ def yahoo(
         mode=opts["mode"],
     )
     _output_png(png, tickers, opts["ratio"], period.value, copy=opts["copy"])
+
+
+@app.command(name="csv")
+def csv_cmd(
+    ctx: typer.Context,
+    files: Annotated[
+        list[str], typer.Argument(help="CSV file paths (timestamp, value)")
+    ],
+    last: Annotated[
+        LastPeriod, typer.Option(help="Show last N period")
+    ] = LastPeriod.all,
+    unit: Annotated[str, typer.Option(help="Value unit label")] = "value",
+) -> None:
+    """Plot time-series data from local CSV files."""
+    opts = ctx.obj
+    if opts["interactive"]:
+        _run_interactive(
+            files,
+            period_choices=[p.value for p in LastPeriod],
+            period=last.value,
+            ratio=opts["ratio"],
+            mode=opts["mode"],
+            colors=opts["colors"],
+            fetch_fn=fetch_csv_series,
+            value_unit=unit,
+        )
+        raise typer.Exit()
+
+    data = fetch_csv_series(files, last.value)
+    png = _render_png(
+        data,
+        opts["ratio"],
+        last.value,
+        color_cycle=opts["colors"],
+        mode=opts["mode"],
+        value_unit=unit,
+    )
+    labels = [Path(f).stem for f in files]
+    _output_png(png, labels, opts["ratio"], last.value, copy=opts["copy"])
 
 
 @app.command()

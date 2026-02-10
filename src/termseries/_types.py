@@ -40,3 +40,12 @@ class YahooPeriod(str, Enum):
     y10 = "10y"
     ytd = "ytd"
     max = "max"
+
+
+class LastPeriod(str, Enum):
+    all = "all"
+    d1 = "1d"
+    d7 = "7d"
+    d30 = "30d"
+    d90 = "90d"
+    y1 = "1y"
