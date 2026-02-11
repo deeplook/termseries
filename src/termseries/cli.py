@@ -23,7 +23,9 @@ app = typer.Typer(help="Render time-series data as terminal plots.")
 @app.callback()  # type: ignore[misc]
 def main(
     ctx: typer.Context,
-    ratio: Annotated[str, typer.Option(help='Aspect ratio "W:H"')] = "4:1",
+    ratio: Annotated[
+        str | None, typer.Option(help='Aspect ratio "W:H" or "fit"')
+    ] = None,
     mode: Annotated[Mode, typer.Option(help="Chart mode")] = Mode.absolute,
     colors: Annotated[ColorCycle, typer.Option(help="Color cycle")] = ColorCycle.tab10,
     style: Annotated[
@@ -38,7 +40,12 @@ def main(
     ] = False,
 ) -> None:
     ctx.ensure_object(dict)
-    ctx.obj["ratio"] = _parse_ratio(ratio)
+    effective_ratio = ("fit" if interactive else "4:1") if ratio is None else ratio
+    ctx.obj["ratio"] = (
+        None
+        if effective_ratio.strip().lower() == "fit"
+        else _parse_ratio(effective_ratio)
+    )
     ctx.obj["mode"] = mode.value
     ctx.obj["colors"] = colors.value
     ctx.obj["style"] = style
@@ -72,15 +79,16 @@ def yahoo(
         raise typer.Exit()
 
     data = fetch_yahoo_series(tickers, period.value)
+    r = opts["ratio"] or (4, 1)
     png = _render_png(
         data,
-        opts["ratio"],
+        r,
         period.value,
         color_cycle=opts["colors"],
         mode=opts["mode"],
         style_override=opts["style"],
     )
-    _output_png(png, tickers, opts["ratio"], period.value, copy=opts["copy"])
+    _output_png(png, tickers, r, period.value, copy=opts["copy"])
 
 
 @app.command(name="csv")  # type: ignore[misc]
@@ -111,9 +119,10 @@ def csv_cmd(
         raise typer.Exit()
 
     data = fetch_csv_series(files, last.value)
+    r = opts["ratio"] or (4, 1)
     png = _render_png(
         data,
-        opts["ratio"],
+        r,
         last.value,
         color_cycle=opts["colors"],
         mode=opts["mode"],
@@ -121,7 +130,7 @@ def csv_cmd(
         style_override=opts["style"],
     )
     labels = [Path(f).stem for f in files]
-    _output_png(png, labels, opts["ratio"], last.value, copy=opts["copy"])
+    _output_png(png, labels, r, last.value, copy=opts["copy"])
 
 
 @app.command()  # type: ignore[misc]
@@ -159,9 +168,10 @@ def ha(
         raise typer.Exit()
 
     data = fetch_ha_series(entities, last.value)
+    r = opts["ratio"] or (4, 1)
     png = _render_png(
         data,
-        opts["ratio"],
+        r,
         last.value,
         color_cycle=opts["colors"],
         mode=opts["mode"],
@@ -169,7 +179,7 @@ def ha(
         style_override=opts["style"],
     )
     labels = list(data.keys())
-    _output_png(png, labels, opts["ratio"], last.value, copy=opts["copy"])
+    _output_png(png, labels, r, last.value, copy=opts["copy"])
 
 
 @app.command()  # type: ignore[misc]

@@ -157,19 +157,24 @@ def _run_interactive(
                 return
             chart = self.query_one("#chart", Image)
             if ratio == "fit":
-                w_cells = chart.size.width or self.size.width
-                h_cells = chart.size.height or (self.size.height - 2)
+                from textual_image._terminal import get_cell_size
+
+                cell = get_cell_size()
+                cell_ratio = cell.height / max(cell.width, 1)
+                w_cells = self.size.width
+                h_cells = self.size.height - 2  # subtract menu row
                 width_in = 12.0
-                height_in = width_in * (h_cells * 2) / w_cells
+                height_in = width_in * h_cells * cell_ratio / max(w_cells, 1)
                 figsize: tuple[float, float] | None = (width_in, height_in)
                 ratio_tuple = (4, 1)
-            else:
-                ratio_tuple = _parse_ratio(ratio) if ratio else (4, 1)
-                figsize = None
-            if ratio == "fit":
                 chart.styles.width = "1fr"
                 chart.styles.height = "1fr"
             else:
+                ratio_tuple = _parse_ratio(ratio) if ratio else (4, 1)
+                rw, rh = ratio_tuple
+                width_in = 12.0
+                height_in = width_in * rh / rw
+                figsize = (width_in, height_in)
                 chart.styles.width = "auto"
                 chart.styles.height = "auto"
             tickers_str = self.query_one("#tickers", Input).value.strip()
