@@ -32,6 +32,7 @@ def _run_interactive(
 ) -> None:
     """Launch the Textual-based interactive chart viewer."""
     from PIL import Image as PILImage
+    from textual import events
     from textual.app import App, ComposeResult
     from textual.containers import Horizontal
     from textual.timer import Timer
@@ -50,10 +51,12 @@ def _run_interactive(
         ]
 
         _last_png: bytes | None = None
+        _last_data: dict[str, TimeSeries] | None = None
         _last_mode: str = "absolute"
         _reverting: bool = False
         _reload_timer: Timer | None = None
         _reload_interval: int = reload_interval or 30
+        _resize_timer: Timer | None = None
 
         CSS = """
         Select {
@@ -157,6 +160,8 @@ def _run_interactive(
             ratio: str | None,
             mode: str | None = None,
             color_cycle: str | None = None,
+            *,
+            data: dict[str, TimeSeries] | None = None,
         ) -> None:
             if period is None:
                 return
@@ -188,7 +193,8 @@ def _run_interactive(
                 return
             columns = tickers_str.split()
             try:
-                data = fetch_fn(columns, period)
+                if data is None:
+                    data = fetch_fn(columns, period)
                 png_bytes = _render_png(
                     data,
                     ratio_tuple,
@@ -205,6 +211,7 @@ def _run_interactive(
                 mode_select = self.query(Select)[2]
                 mode_select.value = self._last_mode
                 return
+            self._last_data = data
             self._last_mode = mode or "absolute"
             self._last_png = png_bytes
             img = PILImage.open(BytesIO(png_bytes))
@@ -279,5 +286,17 @@ def _run_interactive(
 
         def on_input_submitted(self, event: Input.Submitted) -> None:
             self.callback(*self._get_selections())
+
+        def _debounced_rerender(self) -> None:
+            self._resize_timer = None
+            if self._last_data is not None:
+                self.callback(*self._get_selections(), data=self._last_data)
+
+        def on_resize(self, event: events.Resize) -> None:
+            if self._last_data is None:
+                return
+            if self._resize_timer is not None:
+                self._resize_timer.stop()
+            self._resize_timer = self.set_timer(0.15, self._debounced_rerender)
 
     TermSeriesApp().run()

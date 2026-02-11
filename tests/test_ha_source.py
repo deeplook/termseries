@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -14,6 +15,12 @@ from termseries._ha_source import (
     _ha_request,
     fetch_ha_series,
 )
+
+
+def _recent_iso(hours_ago: float) -> str:
+    """Return an ISO 8601 timestamp *hours_ago* hours before now (UTC)."""
+    dt = datetime.now(tz=timezone.utc) - timedelta(hours=hours_ago)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
 
 def _mock_response(body: object, status: int = 200) -> MagicMock:
@@ -86,30 +93,19 @@ class TestHaRequest:
 # ===================================================================
 
 
-_SAMPLE_HISTORY = [
-    [
-        {
-            "state": "21.5",
-            "last_changed": "2024-06-10T10:00:00+00:00",
-        },
-        {
-            "state": "22.0",
-            "last_changed": "2024-06-10T11:00:00+00:00",
-        },
-        {
-            "state": "22.8",
-            "last_changed": "2024-06-10T12:00:00+00:00",
-        },
-    ]
-]
-
-
 class TestFetchHaEntity:
     def test_happy_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
-        resp = _mock_response(_SAMPLE_HISTORY)
+        history = [
+            [
+                {"state": "21.5", "last_changed": _recent_iso(3)},
+                {"state": "22.0", "last_changed": _recent_iso(2)},
+                {"state": "22.8", "last_changed": _recent_iso(1)},
+            ]
+        ]
+        resp = _mock_response(history)
         with patch("termseries._ha_source.requests.get", return_value=resp):
             series = _fetch_ha_entity("sensor.temp", "7d")
 
@@ -119,6 +115,28 @@ class TestFetchHaEntity:
         # Sorted by timestamp
         timestamps = [dt for dt, _ in series]
         assert timestamps == sorted(timestamps)
+
+    def test_drops_stale_initial_point(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The HA API includes a synthetic state at the period start whose
+        last_changed can predate the window — this must be dropped."""
+        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_TOKEN", "tok")
+
+        history = [
+            [
+                # Stale point: last_changed is 30 days ago (outside 7d window)
+                {"state": "0.0", "last_changed": _recent_iso(24 * 30)},
+                # Real points within 7d
+                {"state": "22.0", "last_changed": _recent_iso(2)},
+                {"state": "22.8", "last_changed": _recent_iso(1)},
+            ]
+        ]
+        resp = _mock_response(history)
+        with patch("termseries._ha_source.requests.get", return_value=resp):
+            series = _fetch_ha_entity("sensor.temp", "7d")
+
+        assert len(series) == 2
+        assert series[0][1] == 22.0
 
     def test_filters_non_numeric_states(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_URL", "http://ha.local:8123")

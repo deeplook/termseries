@@ -111,6 +111,13 @@ def _fetch_ha_entity(entity_id: str, period: str) -> TimeSeries:
         )
 
     points.sort(key=lambda r: r[0])
+
+    # The HA history API includes the state at the period start as the first
+    # entry, with ``last_changed`` set to when that state was *actually* set —
+    # which can be well before ``start``.  Drop any such stale points so the
+    # chart doesn't show an artifact (a diagonal line from a stale value).
+    points = [(dt, v) for dt, v in points if dt >= start]
+
     return _filter_last(points, period)
 
 

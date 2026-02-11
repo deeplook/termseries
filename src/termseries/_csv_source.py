@@ -90,9 +90,7 @@ def _read_csv(path: str) -> TimeSeries:
             try:
                 val = float(val_raw)
             except ValueError as exc:
-                raise RuntimeError(
-                    f"{path}:{lineno}: bad value {val_raw!r}"
-                ) from exc
+                raise RuntimeError(f"{path}:{lineno}: bad value {val_raw!r}") from exc
 
             if math.isnan(val) or math.isinf(val):
                 continue
@@ -141,9 +139,7 @@ def _filter_last(series: TimeSeries, last: str) -> TimeSeries:
 # ---------------------------------------------------------------------------
 
 
-def fetch_csv_series(
-    paths: list[str], last: str
-) -> dict[str, TimeSeries]:
+def fetch_csv_series(paths: list[str], last: str) -> dict[str, TimeSeries]:
     """Load CSV files and return labelled time-series data.
 
     Conforms to the ``fetch_fn`` signature used by the TUI and CLI.

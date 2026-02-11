@@ -8,22 +8,6 @@ from __future__ import annotations
 
 __version__ = "0.1.0"
 
-from termseries._render import _output_png, _render_png
-from termseries._terminal import (
-    _copy_to_clipboard,
-    _detect_dark_terminal,
-    _is_iterm2,
-    _is_kitty,
-    _is_sixel_terminal,
-    _is_docker,
-    _is_ssh_session,
-    _parse_ratio,
-    _png_dimensions,
-    _print_iterm2_png,
-    _print_kitty_png,
-    _print_sixel_png,
-)
-from termseries._tui import _run_interactive
 from termseries._csv_source import (
     _filter_last,
     _parse_timestamp,
@@ -36,6 +20,22 @@ from termseries._ha_source import (
     _ha_request,
     fetch_ha_series,
 )
+from termseries._render import _output_png, _render_png
+from termseries._terminal import (
+    _copy_to_clipboard,
+    _detect_dark_terminal,
+    _is_docker,
+    _is_iterm2,
+    _is_kitty,
+    _is_sixel_terminal,
+    _is_ssh_session,
+    _parse_ratio,
+    _png_dimensions,
+    _print_iterm2_png,
+    _print_kitty_png,
+    _print_sixel_png,
+)
+from termseries._tui import _run_interactive
 from termseries._types import ColorCycle, LastPeriod, Mode, TimeSeries, YahooPeriod
 from termseries.cli import app, csv_cmd, demo, ha, main, yahoo
 from termseries.yahoo import _fetch_closes, fetch_yahoo_series
