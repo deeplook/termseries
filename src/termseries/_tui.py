@@ -166,15 +166,18 @@ def _run_interactive(
             if period is None:
                 return
             chart = self.query_one("#chart", Image)
-            if ratio == "fit":
-                from textual_image._terminal import get_cell_size
+            from textual_image._terminal import get_cell_size
 
-                cell = get_cell_size()
-                cell_ratio = cell.height / max(cell.width, 1)
-                w_cells = self.size.width
-                h_cells = self.size.height - 2  # subtract menu row
-                width_in = 12.0
-                height_in = width_in * h_cells * cell_ratio / max(w_cells, 1)
+            cell = get_cell_size()
+            w_cells = self.size.width
+            h_cells = self.size.height - 2  # subtract menu row
+            # Derive width_in from actual terminal pixel width so that
+            # matplotlib font sizes (in points) stay visually constant
+            # regardless of terminal width.  DPI must match the style.
+            dpi = 200
+            width_in = max(w_cells * cell.width, 1) / dpi
+            if ratio == "fit":
+                height_in = max(h_cells * cell.height, 1) / dpi
                 figsize: tuple[float, float] | None = (width_in, height_in)
                 ratio_tuple = (4, 1)
                 chart.styles.width = "1fr"
@@ -182,7 +185,6 @@ def _run_interactive(
             else:
                 ratio_tuple = _parse_ratio(ratio) if ratio else (4, 1)
                 rw, rh = ratio_tuple
-                width_in = 12.0
                 height_in = width_in * rh / rw
                 figsize = (width_in, height_in)
                 chart.styles.width = "auto"

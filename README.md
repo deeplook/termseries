@@ -10,6 +10,51 @@ Yahoo Finance, sensor data from Home Assistant, or any numeric timeseries from
 local CSV files. Renders high-quality PNG charts inline (Kitty, iTerm2, Sixel)
 or saves to file, with an optional interactive Textual TUI.
 
+## Features
+
+### Data Sources
+- Fetch stock/crypto/index prices from Yahoo Finance via the `yahoo` subcommand
+- Plot Home Assistant sensor history via the `ha` subcommand (REST API)
+- Load local two-column CSV files (timestamp, value) via the `csv` subcommand
+- Auto-detect and skip CSV headers, blank lines, NaN/Inf values
+- Accept ISO 8601 timestamps and Unix epochs in CSV files
+- Auto-detect the unit of measurement from Home Assistant entity attributes
+
+### Chart Modes
+- Absolute values (default), indexed to 100%, logarithmic scale
+- Drawdown from running peak, daily returns, and relative price ratio
+- Configurable time windows per data source (1h–max for Yahoo, 1h–1y/all for CSV/HA)
+
+### Terminal Rendering
+- Auto-detect Kitty, iTerm2, and Sixel-capable terminals for inline PNG display
+- Fall back to writing a PNG file when no inline protocol is available
+- Auto-detect dark/light terminal background for theme selection
+- Force dark/light theme or inline/file output via environment variables
+
+### Interactive TUI
+- Full-screen Textual TUI with dropdowns for period, aspect ratio, mode, and color cycle
+- Live ticker/entity/file input with immediate re-render on submit
+- Debounced chart re-render on terminal resize using cached data
+- Auto-reload at a configurable interval (`--reload N`) or toggled with Ctrl+R
+- Copy current plot to clipboard with Ctrl+Y
+
+### Customization
+- Configurable aspect ratio (`--ratio W:H` or `fit` for terminal-filling)
+- Seven built-in color cycles (tab10, Set1, Set2, Dark2, Accent, Pastel1, tab20)
+- Layer custom `.mplstyle` overrides on top of the built-in dark/light themes
+- Consistent font sizes across terminal widths in TUI mode
+
+### Clipboard & Output
+- Copy rendered plot to system clipboard (`-c` or Ctrl+Y in TUI)
+- Clipboard warnings when running inside Docker or over SSH
+- Built-in `demo` command showcasing multiple chart modes
+
+### Developer Experience
+- Fully typed (`py.typed`, mypy-checked)
+- Pre-commit hooks for ruff, ruff-format, and mypy
+- 130+ unit tests covering all modules
+- Docker support with Compose for containerized usage
+
 ## Installation
 
 ```bash
@@ -71,21 +116,6 @@ termseries csv temp.csv humidity.csv --last 7d --unit '°C'
 # Interactive TUI with CSV data
 termseries -i csv sensor.csv
 ```
-
-## Features
-
-- **Multiple data sources**: Yahoo Finance (`yahoo`) for stocks, Home Assistant
-  (`ha`) for smart-home sensors, local CSV files (`csv`) for any numeric
-  timeseries
-- **Multiple chart modes**: absolute, indexed (rebased to 100%), log, drawdown,
-  daily returns, relative (price ratio)
-- **Terminal image protocols**: auto-detects Kitty, iTerm2, Sixel; falls back
-  to writing PNG files
-- **Interactive TUI**: built with [Textual](https://textual.textualize.io/) --
-  dropdowns for period, ratio, mode, colors, plus ticker/file input
-- **Clipboard copy**: `-c` flag or Ctrl+Y in TUI (macOS, Windows, Linux)
-- **Configurable**: aspect ratio (`--ratio`), color cycle (`--colors`),
-  dark/light detection, custom style overrides (`--style`)
 
 ## CSV File Format
 

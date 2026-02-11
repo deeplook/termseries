@@ -128,27 +128,31 @@ def _render_png(
     if mode == "log":
         ax.set_yscale("log")
 
+    is_stock = value_unit == "USD"
     title_labels = {
-        "absolute": "Close",
+        "absolute": "Close" if is_stock else "",
         "indexed": "Indexed",
-        "log": "Close (log)",
+        "log": "Close (log)" if is_stock else "Log",
         "drawdown": "Drawdown",
         "returns": "Daily Returns",
         "relative": f"{names[0]}/{names[1]}" if mode == "relative" else "",
     }
-    ax.set_title(
-        f"{title_labels.get(mode, 'Close')} ({period_label}): {', '.join(names)}"
-    )
+    prefix = title_labels.get(mode, "")
+    names_str = ", ".join(names)
+    if prefix:
+        ax.set_title(f"{prefix} ({period_label}): {names_str}")
+    else:
+        ax.set_title(f"{names_str} ({period_label})")
     ax.set_xlabel("Date (UTC)")
     ylabel = {
-        "absolute": f"Close ({value_unit})",
+        "absolute": f"Close ({value_unit})" if is_stock else value_unit,
         "indexed": "% of start",
-        "log": f"Close ({value_unit}, log)",
+        "log": f"Close ({value_unit}, log)" if is_stock else f"{value_unit} (log)",
         "drawdown": "% from peak",
         "returns": "Daily change (%)",
         "relative": f"{names[0]}/{names[1]} ratio" if mode == "relative" else "",
     }
-    ax.set_ylabel(ylabel.get(mode, f"Close ({value_unit})"))
+    ax.set_ylabel(ylabel.get(mode, value_unit))
     ax.legend(ncols=min(4, max(1, len(names))))
     fig.autofmt_xdate()
 
