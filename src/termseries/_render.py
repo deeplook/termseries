@@ -100,7 +100,10 @@ def _render_png(
             raise RuntimeError(f"No overlapping dates for {names[0]} and {names[1]}.")
         xs = common
         ys = [closes_a[d] / closes_b[d] for d in common]
-        ax.plot(xs, ys, label=f"{names[0]}/{names[1]}")
+        n = len(xs)
+        marker = "o" if n <= 100 else None
+        ms = max(2, 8 - n // 15)
+        ax.plot(xs, ys, label=f"{names[0]}/{names[1]}", marker=marker, markersize=ms)
     else:
         for name, points in series.items():
             xs = [dt for dt, _ in points]
@@ -118,7 +121,10 @@ def _render_png(
             elif mode == "returns" and len(ys) >= 2:
                 xs = xs[1:]
                 ys = [(ys[i] / ys[i - 1] - 1.0) * 100.0 for i in range(1, len(ys))]
-            ax.plot(xs, ys, label=name)
+            n = len(xs)
+            marker = "o" if n <= 100 else None
+            ms = max(2, 8 - n // 15)
+            ax.plot(xs, ys, label=name, marker=marker, markersize=ms)
     if mode == "log":
         ax.set_yscale("log")
 
