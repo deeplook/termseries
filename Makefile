@@ -1,7 +1,11 @@
-.PHONY: install lint format test coverage docs clean install-tool uninstall-tool docker-build docker-run docker-test check-all
+.PHONY: install lint format test coverage docs clean install-tool uninstall-tool docker-build docker-run docker-tui docker-test check-all
 
 # Allow: make docker-run yahoo TSLA AAPL
+# Allow: make docker-tui yahoo TSLA AAPL
 ifeq (docker-run,$(firstword $(MAKECMDGOALS)))
+  ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  $(eval $(ARGS):;@:)
+else ifeq (docker-tui,$(firstword $(MAKECMDGOALS)))
   ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
   $(eval $(ARGS):;@:)
 endif
@@ -44,6 +48,9 @@ docker-build:
 
 docker-run:
 	docker compose run --rm app $(ARGS)
+
+docker-tui:
+	docker compose run --rm app -i $(ARGS)
 
 # Verify the Docker container runs correctly
 docker-test:
