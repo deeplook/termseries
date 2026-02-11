@@ -1,4 +1,10 @@
-.PHONY: install lint format test coverage docs clean install-tool uninstall-tool docker-build docker-test check-all
+.PHONY: install lint format test coverage docs clean install-tool uninstall-tool docker-build docker-run docker-test check-all
+
+# Allow: make docker-run yahoo TSLA AAPL
+ifeq (docker-run,$(firstword $(MAKECMDGOALS)))
+  ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  $(eval $(ARGS):;@:)
+endif
 
 # Install all dependencies including dev extras
 install:
@@ -36,9 +42,12 @@ uninstall-tool:
 docker-build:
 	docker compose build
 
+docker-run:
+	docker compose run --rm app $(ARGS)
+
 # Verify the Docker container runs correctly
 docker-test:
-	docker compose run --rm app
+	docker compose run --rm app --help
 
 # Run all verification targets in order (excludes docs, install-tool, uninstall-tool)
 check-all: install format lint test docker-build docker-test clean
