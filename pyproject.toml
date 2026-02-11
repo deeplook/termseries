@@ -23,6 +23,7 @@ classifiers = [
 dependencies = [
     "matplotlib",
     "pillow>=12.1.0",
+    "requests>=2.31",
     "textual>=7.5.0",
     "textual-image",
     "typer>=0.21.1",
@@ -38,6 +39,7 @@ dev = [
     "mypy>=1.10",
     "ruff>=0.4",
     "pre-commit>=3.0",
+    "types-requests>=2.31",
 ]
 docs = [
     "mkdocs>=1.5",

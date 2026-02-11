@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import json
-import urllib.request
 from datetime import datetime, timezone
+
+import requests
 
 from termseries._types import TimeSeries
 
@@ -15,9 +15,8 @@ def _fetch_closes(ticker: str, period: str) -> list[tuple[datetime, float]]:
         f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
         f"?range={period}&interval=1d"
     )
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        payload = json.loads(resp.read().decode("utf-8"))
+    resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+    payload = resp.json()
 
     result = (payload.get("chart") or {}).get("result") or []
     if not result:

@@ -9,11 +9,11 @@ REST API.  Connection is configured through environment variables:
 
 from __future__ import annotations
 
-import json
 import os
-import urllib.request
 from datetime import datetime, timezone
 from typing import Any
+
+import requests
 
 from termseries._csv_source import _LAST_DELTAS, _filter_last, _parse_timestamp
 from termseries._types import TimeSeries
@@ -32,30 +32,29 @@ def _ha_request(path: str) -> Any:
     base_url = os.environ.get("HASS_URL")
     token = os.environ.get("HASS_TOKEN")
     if not base_url or not token:
-        raise RuntimeError(
-            "HASS_URL and HASS_TOKEN environment variables must be set."
-        )
+        raise RuntimeError("HASS_URL and HASS_TOKEN environment variables must be set.")
 
     url = f"{base_url.rstrip('/')}{path}"
-    req = urllib.request.Request(
-        url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-    )
 
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            if resp.status != 200:
-                raise RuntimeError(
-                    f"Home Assistant API returned HTTP {resp.status} for {path}"
-                )
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.URLError as exc:
+        resp = requests.get(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            timeout=15,
+        )
+    except requests.ConnectionError as exc:
         raise RuntimeError(
             f"Failed to connect to Home Assistant at {url}: {exc}"
         ) from exc
+
+    if resp.status_code != 200:
+        raise RuntimeError(
+            f"Home Assistant API returned HTTP {resp.status_code} for {path}"
+        )
+    return resp.json()
 
 
 # ---------------------------------------------------------------------------
@@ -134,9 +133,7 @@ def _detect_unit(entity_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def fetch_ha_series(
-    entity_ids: list[str], period: str
-) -> dict[str, TimeSeries]:
+def fetch_ha_series(entity_ids: list[str], period: str) -> dict[str, TimeSeries]:
     """Fetch HA sensor history and return labelled time-series data.
 
     Conforms to the ``fetch_fn`` signature used by the TUI and CLI.
