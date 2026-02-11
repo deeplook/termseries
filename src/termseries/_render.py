@@ -39,6 +39,7 @@ def _render_png(
     style_override: Path | None = None,
     tz: str = "UTC",
     interval_label: str = "Daily",
+    line_style: str = "linear",
 ) -> bytes:
     """Render a time-series chart and return PNG bytes.
 
@@ -99,6 +100,13 @@ def _render_png(
         )
     fig, ax = plt.subplots(figsize=(width_in, height_in))
 
+    _ds_map = {
+        "step-pre": "steps-pre",
+        "step-post": "steps-post",
+        "step-mid": "steps-mid",
+    }
+    ds = _ds_map.get(line_style, "default")
+
     if mode == "relative":
         if len(names) != 2:
             raise ValueError(
@@ -116,7 +124,14 @@ def _render_png(
         n = len(xs)
         marker = "o" if n <= 100 else None
         ms = max(2, 8 - n // 15)
-        ax.plot(xs, ys, label=f"{names[0]}/{names[1]}", marker=marker, markersize=ms)
+        ax.plot(
+            xs,
+            ys,
+            label=f"{names[0]}/{names[1]}",
+            marker=marker,
+            markersize=ms,
+            drawstyle=ds,
+        )
     else:
         for name, points in series.items():
             xs = [dt.astimezone(target_tz) for dt, _ in points]
@@ -137,7 +152,7 @@ def _render_png(
             n = len(xs)
             marker = "o" if n <= 100 else None
             ms = max(2, 8 - n // 15)
-            ax.plot(xs, ys, label=name, marker=marker, markersize=ms)
+            ax.plot(xs, ys, label=name, marker=marker, markersize=ms, drawstyle=ds)
     if mode == "log":
         ax.set_yscale("log")
 

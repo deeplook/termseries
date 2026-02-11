@@ -15,7 +15,14 @@ from termseries._ha_source import _detect_unit, fetch_ha_series
 from termseries._render import _output_png, _render_png
 from termseries._terminal import _parse_ratio
 from termseries._tui import _run_interactive
-from termseries._types import ColorCycle, LastPeriod, Mode, YahooInterval, YahooPeriod
+from termseries._types import (
+    ColorCycle,
+    LastPeriod,
+    LineStyle,
+    Mode,
+    YahooInterval,
+    YahooPeriod,
+)
 from termseries.yahoo import _resolve_interval, fetch_yahoo_series
 
 app = typer.Typer(help="Render time-series data as terminal plots.")
@@ -45,6 +52,9 @@ def main(
     tz: Annotated[
         str, typer.Option(help='Timezone for x-axis: "UTC", "local", or IANA name')
     ] = "UTC",
+    line_style: Annotated[
+        LineStyle, typer.Option(help="Line connection style")
+    ] = LineStyle.linear,
 ) -> None:
     ctx.ensure_object(dict)
     effective_ratio = ("fit" if interactive else "4:1") if ratio is None else ratio
@@ -60,6 +70,7 @@ def main(
     ctx.obj["interactive"] = interactive
     ctx.obj["reload"] = reload
     ctx.obj["tz"] = tz
+    ctx.obj["line_style"] = line_style.value
 
 
 @app.command()  # type: ignore[misc]
@@ -92,6 +103,7 @@ def yahoo(
             style_override=opts["style"],
             reload_interval=opts["reload"],
             tz=opts["tz"],
+            line_style=opts["line_style"],
         )
         raise typer.Exit()
 
@@ -106,6 +118,7 @@ def yahoo(
         style_override=opts["style"],
         tz=opts["tz"],
         interval_label=interval_label,
+        line_style=opts["line_style"],
     )
     _output_png(png, tickers, r, period.value, copy=opts["copy"])
 
@@ -136,6 +149,7 @@ def csv_cmd(
             style_override=opts["style"],
             reload_interval=opts["reload"],
             tz=opts["tz"],
+            line_style=opts["line_style"],
         )
         raise typer.Exit()
 
@@ -150,6 +164,7 @@ def csv_cmd(
         value_unit=unit,
         style_override=opts["style"],
         tz=opts["tz"],
+        line_style=opts["line_style"],
     )
     labels = [Path(f).stem for f in files]
     _output_png(png, labels, r, last.value, copy=opts["copy"])
@@ -188,6 +203,7 @@ def ha(
             style_override=opts["style"],
             reload_interval=opts["reload"],
             tz=opts["tz"],
+            line_style=opts["line_style"],
         )
         raise typer.Exit()
 
@@ -202,6 +218,7 @@ def ha(
         value_unit=resolved_unit,
         style_override=opts["style"],
         tz=opts["tz"],
+        line_style=opts["line_style"],
     )
     labels = list(data.keys())
     _output_png(png, labels, r, last.value, copy=opts["copy"])

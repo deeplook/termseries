@@ -92,6 +92,9 @@ termseries yahoo TSLA --interval 1m --period 1d
 # Relative price ratio (exactly 2 tickers)
 termseries --mode relative yahoo --period 1y AAPL MSFT
 
+# Step-style line (staircase effect)
+termseries --line-style step-post yahoo TSLA --period 5d
+
 # Display x-axis in your local timezone
 termseries --tz local yahoo TSLA AAPL
 
@@ -159,6 +162,7 @@ from the entity's attributes.
 | `--mode` | Chart mode: absolute, indexed, log, drawdown, returns, relative |
 | `--tz TZ` | Timezone for x-axis: `UTC` (default), `local`, or IANA name (e.g. `Europe/Berlin`) |
 | `--colors` | Matplotlib color cycle: tab10, Set1, Set2, Dark2, Accent, Pastel1, tab20 |
+| `--line-style` | Line connection style: linear (default), step-pre, step-post, step-mid |
 | `--style PATH` | Extra `.mplstyle` file layered on top of the base theme (see [Custom Styles](#custom-styles)) |
 | `-c` / `--copy` | Copy plot to system clipboard |
 | `-i` / `--interactive` | Launch Textual TUI |

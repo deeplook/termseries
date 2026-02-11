@@ -53,6 +53,13 @@ class YahooInterval(str, Enum):
     d1 = "1d"
 
 
+class LineStyle(str, Enum):
+    linear = "linear"
+    step_pre = "step-pre"
+    step_post = "step-post"
+    step_mid = "step-mid"
+
+
 class LastPeriod(str, Enum):
     all = "all"
     h1 = "1h"
