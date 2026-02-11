@@ -205,18 +205,39 @@ grid.linestyle:   --          # dashed grid
 
 ```
 termseries/
-├── src/
-│   └── termseries/
-│       ├── __init__.py
-│       ├── __main__.py
-│       ├── dark.mplstyle
-│       ├── light.mplstyle
-│       └── py.typed
+├── src/termseries/
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── _csv_source.py
+│   ├── _ha_source.py
+│   ├── _render.py
+│   ├── _terminal.py
+│   ├── _tui.py
+│   ├── _types.py
+│   ├── cli.py
+│   ├── yahoo.py
+│   ├── dark.mplstyle
+│   ├── light.mplstyle
+│   └── py.typed
 ├── tests/
+│   ├── conftest.py
+│   ├── test_csv_source.py
+│   ├── test_docker.py
+│   ├── test_ha_source.py
+│   ├── test_render.py
+│   └── test_terminal.py
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml
+│   │   └── publish.yml
+│   ├── ISSUE_TEMPLATE/
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   └── dependabot.yml
 ├── example.mplstyle
 ├── pyproject.toml
 ├── Makefile
 ├── Dockerfile
+├── docker-compose.yml
 └── README.md
 ```
 
