@@ -41,6 +41,9 @@ def main(
     reload: Annotated[
         int, typer.Option(help="Auto-reload interval in seconds (0=off, TUI only)")
     ] = 0,
+    tz: Annotated[
+        str, typer.Option(help='Timezone for x-axis: "UTC", "local", or IANA name')
+    ] = "UTC",
 ) -> None:
     ctx.ensure_object(dict)
     effective_ratio = ("fit" if interactive else "4:1") if ratio is None else ratio
@@ -55,6 +58,7 @@ def main(
     ctx.obj["copy"] = copy
     ctx.obj["interactive"] = interactive
     ctx.obj["reload"] = reload
+    ctx.obj["tz"] = tz
 
 
 @app.command()  # type: ignore[misc]
@@ -80,6 +84,7 @@ def yahoo(
             fetch_fn=fetch_yahoo_series,
             style_override=opts["style"],
             reload_interval=opts["reload"],
+            tz=opts["tz"],
         )
         raise typer.Exit()
 
@@ -92,6 +97,7 @@ def yahoo(
         color_cycle=opts["colors"],
         mode=opts["mode"],
         style_override=opts["style"],
+        tz=opts["tz"],
     )
     _output_png(png, tickers, r, period.value, copy=opts["copy"])
 
@@ -121,6 +127,7 @@ def csv_cmd(
             value_unit=unit,
             style_override=opts["style"],
             reload_interval=opts["reload"],
+            tz=opts["tz"],
         )
         raise typer.Exit()
 
@@ -134,6 +141,7 @@ def csv_cmd(
         mode=opts["mode"],
         value_unit=unit,
         style_override=opts["style"],
+        tz=opts["tz"],
     )
     labels = [Path(f).stem for f in files]
     _output_png(png, labels, r, last.value, copy=opts["copy"])
@@ -171,6 +179,7 @@ def ha(
             value_unit=resolved_unit,
             style_override=opts["style"],
             reload_interval=opts["reload"],
+            tz=opts["tz"],
         )
         raise typer.Exit()
 
@@ -184,6 +193,7 @@ def ha(
         mode=opts["mode"],
         value_unit=resolved_unit,
         style_override=opts["style"],
+        tz=opts["tz"],
     )
     labels = list(data.keys())
     _output_png(png, labels, r, last.value, copy=opts["copy"])

@@ -19,6 +19,7 @@ or saves to file, with an optional interactive Textual TUI.
 - Auto-detect and skip CSV headers, blank lines, NaN/Inf values
 - Accept ISO 8601 timestamps and Unix epochs in CSV files
 - Auto-detect the unit of measurement from Home Assistant entity attributes
+- All timestamps are stored internally as UTC; use `--tz` to display in another timezone
 
 ### Chart Modes
 - Absolute values (default), indexed to 100%, logarithmic scale
@@ -85,6 +86,12 @@ termseries --mode drawdown yahoo --period 1y TSLA AAPL
 # Relative price ratio (exactly 2 tickers)
 termseries --mode relative yahoo --period 1y AAPL MSFT
 
+# Display x-axis in your local timezone
+termseries --tz local yahoo TSLA AAPL
+
+# Display x-axis in a specific timezone
+termseries --tz Europe/Berlin ha sensor.living_room_temperature --last 1d
+
 # Copy plot to clipboard
 termseries yahoo -c TSLA AAPL
 
@@ -121,7 +128,8 @@ termseries -i csv sensor.csv
 
 The `csv` subcommand expects two-column CSV files (timestamp, value). Header
 rows are auto-detected and skipped. Timestamps can be ISO 8601 strings or Unix
-epochs. Blank lines and NaN/Inf values are silently skipped.
+epochs. Blank lines and NaN/Inf values are silently skipped. Naive timestamps
+(without an explicit offset) are assumed to be UTC.
 
 ```csv
 2024-01-01T00:00:00Z,20.5
@@ -143,6 +151,7 @@ from the entity's attributes.
 |---|---|
 | `--ratio W:H` | Figure aspect ratio (default: 4:1) |
 | `--mode` | Chart mode: absolute, indexed, log, drawdown, returns, relative |
+| `--tz TZ` | Timezone for x-axis: `UTC` (default), `local`, or IANA name (e.g. `Europe/Berlin`) |
 | `--colors` | Matplotlib color cycle: tab10, Set1, Set2, Dark2, Accent, Pastel1, tab20 |
 | `--style PATH` | Extra `.mplstyle` file layered on top of the base theme (see [Custom Styles](#custom-styles)) |
 | `-c` / `--copy` | Copy plot to system clipboard |

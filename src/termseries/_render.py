@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import timezone
 from io import BytesIO
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -35,6 +37,7 @@ def _render_png(
     mode: str = "absolute",
     value_unit: str = "USD",
     style_override: Path | None = None,
+    tz: str = "UTC",
 ) -> bytes:
     """Render a time-series chart and return PNG bytes.
 
@@ -60,6 +63,15 @@ def _render_png(
     style_override : Path | None
         Extra .mplstyle file layered on top of the base theme.
     """
+    # Resolve target timezone for x-axis display
+    target_tz: timezone | ZoneInfo | None
+    if tz == "UTC":
+        target_tz = timezone.utc
+    elif tz == "local":
+        target_tz = None  # astimezone(None) gives local tz
+    else:
+        target_tz = ZoneInfo(tz)
+
     names = list(series.keys())
     if not names:
         raise ValueError("No data series provided. Pass at least one series.")
@@ -93,8 +105,8 @@ def _render_png(
             )
         pts_a = series[names[0]]
         pts_b = series[names[1]]
-        closes_a = {dt.date(): c for dt, c in pts_a}
-        closes_b = {dt.date(): c for dt, c in pts_b}
+        closes_a = {dt.astimezone(target_tz).date(): c for dt, c in pts_a}
+        closes_b = {dt.astimezone(target_tz).date(): c for dt, c in pts_b}
         common = sorted(closes_a.keys() & closes_b.keys())
         if not common:
             raise RuntimeError(f"No overlapping dates for {names[0]} and {names[1]}.")
@@ -106,7 +118,7 @@ def _render_png(
         ax.plot(xs, ys, label=f"{names[0]}/{names[1]}", marker=marker, markersize=ms)
     else:
         for name, points in series.items():
-            xs = [dt for dt, _ in points]
+            xs = [dt.astimezone(target_tz) for dt, _ in points]
             ys = [close for _, close in points]
             if mode == "indexed" and ys:
                 base = ys[0]
@@ -143,7 +155,8 @@ def _render_png(
         ax.set_title(f"{prefix} ({period_label}): {names_str}")
     else:
         ax.set_title(f"{names_str} ({period_label})")
-    ax.set_xlabel("Date (UTC)")
+    tz_label = "UTC" if tz == "UTC" else "local" if tz == "local" else tz
+    ax.set_xlabel(f"Date ({tz_label})")
     ylabel = {
         "absolute": f"Close ({value_unit})" if is_stock else value_unit,
         "indexed": "% of start",
