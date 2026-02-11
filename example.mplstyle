@@ -20,5 +20,12 @@ lines.marker:     None        # no markers, just lines
 # --- Figure ----------------------------------------------------------------
 # figure.dpi:       150       # lower DPI for smaller file size
 
+# --- Labels ---------------------------------------------------------------
+font.weight:        bold
+axes.labelweight:   bold
+axes.titleweight:   bold
+xtick.labelsize:    medium
+ytick.labelsize:    medium
+
 # --- Color cycle (Tableau 10 palette) --------------------------------------
 # axes.prop_cycle: cycler('color', ['1f77b4', 'ff7f0e', '2ca02c', 'd62728', '9467bd', '8c564b', 'e377c2', '7f7f7f', 'bcbd22', '17becf'])

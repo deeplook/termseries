@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from io import BytesIO
+from pathlib import Path
 
 from termseries._render import _render_png
 from termseries._terminal import (
@@ -26,6 +27,7 @@ def _run_interactive(
     colors: str | None = None,
     fetch_fn: Callable[[list[str], str], dict[str, TimeSeries]],
     value_unit: str = "USD",
+    style_override: Path | None = None,
 ) -> None:
     """Launch the Textual-based interactive chart viewer."""
     from PIL import Image as PILImage
@@ -185,6 +187,7 @@ def _run_interactive(
                     color_cycle=color_cycle,
                     mode=mode or "absolute",
                     value_unit=value_unit,
+                    style_override=style_override,
                 )
             except (ValueError, RuntimeError) as e:
                 self.notify(str(e), severity="warning")

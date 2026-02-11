@@ -67,6 +67,7 @@ def yahoo(
             mode=opts["mode"],
             colors=opts["colors"],
             fetch_fn=fetch_yahoo_series,
+            style_override=opts["style"],
         )
         raise typer.Exit()
 
@@ -105,6 +106,7 @@ def csv_cmd(
             colors=opts["colors"],
             fetch_fn=fetch_csv_series,
             value_unit=unit,
+            style_override=opts["style"],
         )
         raise typer.Exit()
 
@@ -152,6 +154,7 @@ def ha(
             colors=opts["colors"],
             fetch_fn=fetch_ha_series,
             value_unit=resolved_unit,
+            style_override=opts["style"],
         )
         raise typer.Exit()
 
