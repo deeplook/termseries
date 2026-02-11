@@ -28,11 +28,13 @@ def _run_interactive(
     fetch_fn: Callable[[list[str], str], dict[str, TimeSeries]],
     value_unit: str = "USD",
     style_override: Path | None = None,
+    reload_interval: int = 0,
 ) -> None:
     """Launch the Textual-based interactive chart viewer."""
     from PIL import Image as PILImage
     from textual.app import App, ComposeResult
     from textual.containers import Horizontal
+    from textual.timer import Timer
     from textual.widgets import Input, Select
     from textual.widgets._select import SelectOverlay
     from textual_image.widget import Image
@@ -44,11 +46,14 @@ def _run_interactive(
             ("left", "focus_previous", "Previous"),
             ("right", "focus_next", "Next"),
             ("ctrl+y", "yank", "Copy"),
+            ("ctrl+r", "toggle_reload", "Reload"),
         ]
 
         _last_png: bytes | None = None
         _last_mode: str = "absolute"
         _reverting: bool = False
+        _reload_timer: Timer | None = None
+        _reload_interval: int = reload_interval or 30
 
         CSS = """
         Select {
@@ -239,11 +244,32 @@ def _run_interactive(
             except Exception as e:
                 self.notify(f"Copy failed: {e}", severity="error")
 
+        def action_toggle_reload(self) -> None:
+            if self._reload_timer is not None:
+                self._reload_timer.stop()
+                self._reload_timer = None
+                self.notify("Auto-reload off")
+            else:
+                self._reload_timer = self.set_interval(
+                    self._reload_interval, self._reload_tick
+                )
+                self.notify(f"Auto-reload every {self._reload_interval}s")
+
+        def _reload_tick(self) -> None:
+            try:
+                self.callback(*self._get_selections())
+            except Exception as e:
+                self.notify(f"Reload failed: {e}", severity="warning")
+
         def on_mount(self) -> None:
             for sel in self.query(Select):
                 sel.query_one(SelectOverlay).disable_option_at_index(0)
             if initial_columns:
                 self.callback(*self._get_selections())
+            if reload_interval > 0:
+                self._reload_timer = self.set_interval(
+                    reload_interval, self._reload_tick
+                )
 
         def on_select_changed(self, event: Select.Changed) -> None:  # type: ignore[type-arg,unused-ignore]
             if self._reverting:

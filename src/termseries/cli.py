@@ -38,6 +38,9 @@ def main(
     interactive: Annotated[
         bool, typer.Option("--interactive", "-i", help="Launch TUI")
     ] = False,
+    reload: Annotated[
+        int, typer.Option(help="Auto-reload interval in seconds (0=off, TUI only)")
+    ] = 0,
 ) -> None:
     ctx.ensure_object(dict)
     effective_ratio = ("fit" if interactive else "4:1") if ratio is None else ratio
@@ -51,6 +54,7 @@ def main(
     ctx.obj["style"] = style
     ctx.obj["copy"] = copy
     ctx.obj["interactive"] = interactive
+    ctx.obj["reload"] = reload
 
 
 @app.command()  # type: ignore[misc]
@@ -75,6 +79,7 @@ def yahoo(
             colors=opts["colors"],
             fetch_fn=fetch_yahoo_series,
             style_override=opts["style"],
+            reload_interval=opts["reload"],
         )
         raise typer.Exit()
 
@@ -115,6 +120,7 @@ def csv_cmd(
             fetch_fn=fetch_csv_series,
             value_unit=unit,
             style_override=opts["style"],
+            reload_interval=opts["reload"],
         )
         raise typer.Exit()
 
@@ -164,6 +170,7 @@ def ha(
             fetch_fn=fetch_ha_series,
             value_unit=resolved_unit,
             style_override=opts["style"],
+            reload_interval=opts["reload"],
         )
         raise typer.Exit()
 
