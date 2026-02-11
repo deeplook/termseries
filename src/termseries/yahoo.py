@@ -6,24 +6,8 @@ from datetime import datetime, timezone
 
 import requests
 
+from termseries._period import filter_period, yahoo_auto_interval, yahoo_covering_range
 from termseries._types import TimeSeries
-
-_AUTO_INTERVAL: dict[str, str] = {
-    "1d": "5m",
-    "5d": "15m",
-    "7d": "15m",
-}
-
-
-def _resolve_interval(period: str, interval: str) -> str:
-    """Return a concrete Yahoo interval string.
-
-    If *interval* is ``"auto"``, pick a sensible default based on *period*;
-    otherwise return *interval* unchanged.
-    """
-    if interval != "auto":
-        return interval
-    return _AUTO_INTERVAL.get(period, "1d")
 
 
 def _fetch_closes(
@@ -67,11 +51,24 @@ def fetch_yahoo_series(
 
     Returns a dict mapping ticker symbol to its list of (datetime, close) points.
     Tickers are deduplicated and uppercased; order is preserved.
+
+    Non-native Yahoo periods are handled by overfetching the next-larger
+    native range and trimming client-side.
     """
-    resolved = _resolve_interval(period, interval)
+    resolved = yahoo_auto_interval(period) if interval == "auto" else interval
+    covering = yahoo_covering_range(period)
+    need_trim = covering != period
+
     tickers = list(dict.fromkeys(t.strip().upper() for t in tickers if t.strip()))
     if not tickers:
         raise ValueError(
             "No ticker symbols provided. Pass at least one ticker (e.g. TSLA)."
         )
-    return {ticker: _fetch_closes(ticker, period, resolved) for ticker in tickers}
+
+    result: dict[str, TimeSeries] = {}
+    for ticker in tickers:
+        points = _fetch_closes(ticker, covering, resolved)
+        if need_trim:
+            points = filter_period(points, period)
+        result[ticker] = points
+    return result

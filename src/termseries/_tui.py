@@ -94,6 +94,8 @@ def _run_interactive(
             has_columns = bool(initial_columns)
             with Horizontal(id="menu"):
                 periods = period_choices
+                if period and period not in periods:
+                    periods = [*periods, period]
                 s1 = Select.from_values(periods, prompt="Period", allow_blank=True)
                 if period and period in periods:
                     s1.value = period

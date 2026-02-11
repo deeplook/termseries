@@ -9,7 +9,6 @@ from __future__ import annotations
 __version__ = "0.1.0"
 
 from termseries._csv_source import (
-    _filter_last,
     _parse_timestamp,
     _read_csv,
     fetch_csv_series,
@@ -19,6 +18,11 @@ from termseries._ha_source import (
     _fetch_ha_entity,
     _ha_request,
     fetch_ha_series,
+)
+from termseries._period import (
+    TUI_PERIOD_CHOICES,
+    filter_period,
+    parse_period,
 )
 from termseries._render import _output_png, _render_png
 from termseries._terminal import (
@@ -36,7 +40,7 @@ from termseries._terminal import (
     _print_sixel_png,
 )
 from termseries._tui import _run_interactive
-from termseries._types import ColorCycle, LastPeriod, Mode, TimeSeries, YahooPeriod
+from termseries._types import ColorCycle, Mode, TimeSeries
 from termseries.cli import app, csv_cmd, demo, ha, main, yahoo
 from termseries.yahoo import _fetch_closes, fetch_yahoo_series
 
@@ -45,8 +49,9 @@ __all__ = [
     "TimeSeries",
     "Mode",
     "ColorCycle",
-    "YahooPeriod",
-    "LastPeriod",
+    "TUI_PERIOD_CHOICES",
+    "parse_period",
+    "filter_period",
     "app",
     "main",
     "yahoo",
@@ -62,7 +67,6 @@ __all__ = [
     "ha",
     "_read_csv",
     "_parse_timestamp",
-    "_filter_last",
     "_render_png",
     "_output_png",
     "_run_interactive",

@@ -24,7 +24,7 @@ or saves to file, with an optional interactive Textual TUI.
 ### Chart Modes
 - Absolute values (default), indexed to 100%, logarithmic scale
 - Drawdown from running peak, interval-aware returns (label adapts to interval), and relative price ratio
-- Configurable time windows per data source (1h–max for Yahoo, 1h–1y/all for CSV/HA)
+- Unified free-form period syntax across all subcommands (`<number><unit>`, e.g. `14d`, `2w`, `3mo`, or `max`)
 
 ### Terminal Rendering
 - Auto-detect Kitty, iTerm2, and Sixel-capable terminals for inline PNG display
@@ -53,7 +53,7 @@ or saves to file, with an optional interactive Textual TUI.
 ### Developer Experience
 - Fully typed (`py.typed`, mypy-checked)
 - Pre-commit hooks for ruff, ruff-format, and mypy
-- 130+ unit tests covering all modules
+- 170+ unit tests covering all modules
 - Docker support with Compose for containerized usage
 
 ## Installation
@@ -99,7 +99,7 @@ termseries --line-style step-post yahoo TSLA --period 5d
 termseries --tz local yahoo TSLA AAPL
 
 # Display x-axis in a specific timezone
-termseries --tz Europe/Berlin ha sensor.living_room_temperature --last 1d
+termseries --tz Europe/Berlin ha sensor.living_room_temperature --period 1d
 
 # Copy plot to clipboard
 termseries yahoo -c TSLA AAPL
@@ -113,10 +113,10 @@ termseries -i yahoo TSLA
 termseries ha sensor.living_room_temperature sensor.bedroom_temperature
 
 # Last 3 hours of data
-termseries ha sensor.living_room_temperature --last 3h
+termseries ha sensor.living_room_temperature --period 3h
 
 # Last 30 days with explicit unit
-termseries ha sensor.living_room_temperature --last 30d --unit '°C'
+termseries ha sensor.living_room_temperature --period 30d --unit '°C'
 
 # Interactive TUI with HA data
 termseries -i ha sensor.power_consumption
@@ -127,7 +127,11 @@ termseries -i ha sensor.power_consumption
 termseries csv /path/to/sensor.csv
 
 # Multiple files, last 7 days, with a custom unit label
-termseries csv temp.csv humidity.csv --last 7d --unit '°C'
+termseries csv temp.csv humidity.csv --period 7d --unit '°C'
+
+# Non-standard periods work everywhere
+termseries yahoo TSLA --period 14d
+termseries yahoo TSLA --period 2w
 
 # Interactive TUI with CSV data
 termseries -i csv sensor.csv
@@ -147,11 +151,12 @@ epochs. Blank lines and NaN/Inf values are silently skipped. Naive timestamps
 ```
 
 Each file becomes one series labelled by its filename (without extension). The
-`--last` option filters to a time window from the most recent data point:
-`all` (default), `1h`, `3h`, `6h`, `12h`, `1d`, `2d`, `7d`, `30d`, `90d`,
-`1y`. The `--unit` option sets the y-axis label (default: `value`).
+`--period` option filters to a time window from the most recent data point
+using free-form `<number><unit>` syntax (e.g. `7d`, `2w`, `3mo`) or `max`
+(default, shows all data). The `--unit` option sets the y-axis label
+(default: `value`).
 
-The `ha` subcommand uses the same `--last` periods and auto-detects the unit
+The `ha` subcommand uses the same `--period` syntax and auto-detects the unit
 from the entity's attributes.
 
 ## Shared Options
@@ -167,22 +172,38 @@ from the entity's attributes.
 | `-c` / `--copy` | Copy plot to system clipboard |
 | `-i` / `--interactive` | Launch Textual TUI |
 
+### Period Syntax (all subcommands)
+
+All subcommands accept `--period` with free-form `<number><unit>` values:
+
+| Unit | Example | Meaning |
+|------|---------|---------|
+| `m`  | `30m`   | minutes |
+| `h`  | `6h`    | hours   |
+| `d`  | `14d`   | days    |
+| `w`  | `2w`    | weeks   |
+| `mo` | `3mo`   | months (≈30 days) |
+| `y`  | `1y`    | years (≈365 days) |
+| `max`|         | all available data |
+
+For Yahoo, non-native periods (e.g. `14d`, `2w`) are handled automatically by
+overfetching the next-larger native range and trimming client-side.
+
 ### Yahoo-specific Options
 
 | Option | Description |
 |---|---|
-| `--period` | Chart range: 1d, 5d, 7d (default), 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max |
+| `--period` | Chart range (default: `7d`). Any `<number><unit>` or `max` |
 | `--interval` | Data interval: auto (default), 1m, 5m, 15m, 30m, 60m, 90m, 1d |
 
 When `--interval auto` (the default), termseries picks a sensible interval based
-on the period:
+on the period duration:
 
-| Period | Auto interval |
-|--------|--------------|
-| 1d     | 5m           |
-| 5d     | 15m          |
-| 7d     | 15m          |
-| 1mo+   | 1d           |
+| Period duration | Auto interval |
+|-----------------|--------------|
+| ≤ 1 day         | 5m           |
+| ≤ 7 days        | 15m          |
+| > 7 days        | 1d           |
 
 ## Home Assistant Setup
 
@@ -270,6 +291,7 @@ termseries/
 │   ├── __main__.py
 │   ├── _csv_source.py
 │   ├── _ha_source.py
+│   ├── _period.py
 │   ├── _render.py
 │   ├── _terminal.py
 │   ├── _tui.py
@@ -284,6 +306,7 @@ termseries/
 │   ├── test_csv_source.py
 │   ├── test_docker.py
 │   ├── test_ha_source.py
+│   ├── test_period.py
 │   ├── test_render.py
 │   └── test_terminal.py
 ├── .github/

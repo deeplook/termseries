@@ -15,7 +15,8 @@ from typing import Any
 
 import requests
 
-from termseries._csv_source import _LAST_DELTAS, _filter_last, _parse_timestamp
+from termseries._csv_source import _parse_timestamp
+from termseries._period import filter_period, parse_period
 from termseries._types import TimeSeries
 
 # ---------------------------------------------------------------------------
@@ -67,9 +68,9 @@ def _fetch_ha_entity(entity_id: str, period: str) -> TimeSeries:
 
     *period* is a :class:`LastPeriod` value string (e.g. ``"7d"``).
     """
-    delta = _LAST_DELTAS.get(period)
+    delta = parse_period(period)
     if delta is None:
-        # "all" — request a very large window (10 years)
+        # "max" — request a very large window (10 years)
         start = datetime(2015, 1, 1, tzinfo=timezone.utc)
     else:
         start = datetime.now(tz=timezone.utc) - delta
@@ -118,7 +119,7 @@ def _fetch_ha_entity(entity_id: str, period: str) -> TimeSeries:
     # chart doesn't show an artifact (a diagonal line from a stale value).
     points = [(dt, v) for dt, v in points if dt >= start]
 
-    return _filter_last(points, period)
+    return filter_period(points, period)
 
 
 # ---------------------------------------------------------------------------

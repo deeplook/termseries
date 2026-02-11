@@ -152,7 +152,7 @@ class TestFetchHaEntity:
         ]
         resp = _mock_response(history)
         with patch("termseries._ha_source.requests.get", return_value=resp):
-            series = _fetch_ha_entity("sensor.temp", "all")
+            series = _fetch_ha_entity("sensor.temp", "max")
 
         assert len(series) == 2
         assert series[0][1] == 21.5
@@ -210,7 +210,7 @@ class TestFetchHaEntity:
         ]
         resp = _mock_response(history)
         with patch("termseries._ha_source.requests.get", return_value=resp):
-            series = _fetch_ha_entity("sensor.temp", "all")
+            series = _fetch_ha_entity("sensor.temp", "max")
 
         timestamps = [dt for dt, _ in series]
         assert timestamps == sorted(timestamps)
@@ -329,7 +329,7 @@ class TestFetchHaSeries:
             "termseries._ha_source.requests.get",
             side_effect=self._side_effect(mocks),
         ):
-            result = fetch_ha_series(["sensor.temp"], "all")
+            result = fetch_ha_series(["sensor.temp"], "max")
 
         assert "Living Room Temperature" in result
         assert len(result["Living Room Temperature"]) == 2
@@ -343,7 +343,7 @@ class TestFetchHaSeries:
             "termseries._ha_source.requests.get",
             side_effect=self._side_effect(mocks),
         ):
-            result = fetch_ha_series(["sensor.temp", "sensor.humid"], "all")
+            result = fetch_ha_series(["sensor.temp", "sensor.humid"], "max")
 
         assert "Living Room Temperature" in result
         assert "Bedroom Humidity" in result
@@ -358,7 +358,7 @@ class TestFetchHaSeries:
             side_effect=self._side_effect(mocks),
         ):
             result = fetch_ha_series(
-                ["sensor.temp", "sensor.temp", "sensor.temp"], "all"
+                ["sensor.temp", "sensor.temp", "sensor.temp"], "max"
             )
 
         assert len(result) == 1
@@ -386,6 +386,6 @@ class TestFetchHaSeries:
             raise ValueError(f"Unexpected URL: {url}")
 
         with patch("termseries._ha_source.requests.get", side_effect=get):
-            result = fetch_ha_series(["sensor.no_name"], "all")
+            result = fetch_ha_series(["sensor.no_name"], "max")
 
         assert "sensor.no_name" in result

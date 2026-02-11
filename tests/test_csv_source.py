@@ -8,11 +8,11 @@ from pathlib import Path
 import pytest
 
 from termseries._csv_source import (
-    _filter_last,
     _parse_timestamp,
     _read_csv,
     fetch_csv_series,
 )
+from termseries._period import filter_period
 
 # ===================================================================
 # _parse_timestamp
@@ -141,27 +141,27 @@ class TestFilterLast:
         base = datetime(2024, 6, 1, tzinfo=timezone.utc)
         return [(base + timedelta(days=i), float(i)) for i in range(n)]
 
-    def test_all_returns_unchanged(self) -> None:
+    def test_max_returns_unchanged(self) -> None:
         series = self._make_daily_series()
-        assert _filter_last(series, "all") == series
+        assert filter_period(series, "max") == series
 
     def test_1d(self) -> None:
         series = self._make_daily_series()
-        filtered = _filter_last(series, "1d")
+        filtered = filter_period(series, "1d")
         assert len(filtered) == 2  # last day + 1 day back
 
     def test_7d(self) -> None:
         series = self._make_daily_series()
-        filtered = _filter_last(series, "7d")
+        filtered = filter_period(series, "7d")
         assert len(filtered) == 8
 
     def test_30d(self) -> None:
         series = self._make_daily_series()
-        filtered = _filter_last(series, "30d")
+        filtered = filter_period(series, "30d")
         assert len(filtered) == 31
 
     def test_empty_series(self) -> None:
-        assert _filter_last([], "7d") == []
+        assert filter_period([], "7d") == []
 
 
 # ===================================================================
@@ -173,7 +173,7 @@ class TestFetchCsvSeries:
     def test_single_file(self, tmp_path: Path) -> None:
         f = tmp_path / "sensor.csv"
         f.write_text("2024-01-01,10.0\n2024-01-02,20.0\n")
-        result = fetch_csv_series([str(f)], "all")
+        result = fetch_csv_series([str(f)], "max")
         assert "sensor" in result
         assert len(result["sensor"]) == 2
 
@@ -182,7 +182,7 @@ class TestFetchCsvSeries:
         f2 = tmp_path / "humid.csv"
         f1.write_text("2024-01-01,20.0\n2024-01-02,21.0\n")
         f2.write_text("2024-01-01,50.0\n2024-01-02,55.0\n")
-        result = fetch_csv_series([str(f1), str(f2)], "all")
+        result = fetch_csv_series([str(f1), str(f2)], "max")
         assert "temp" in result
         assert "humid" in result
 
@@ -190,7 +190,7 @@ class TestFetchCsvSeries:
         f = tmp_path / "data.csv"
         f.write_text("2024-01-01,10.0\n")
         # Pass the same file twice with different representations
-        result = fetch_csv_series([str(f), str(f)], "all")
+        result = fetch_csv_series([str(f), str(f)], "max")
         assert len(result) == 1
 
     def test_applies_last_filter(self, tmp_path: Path) -> None:
@@ -203,5 +203,5 @@ class TestFetchCsvSeries:
     def test_label_from_stem(self, tmp_path: Path) -> None:
         f = tmp_path / "my_sensor_data.csv"
         f.write_text("2024-01-01,1.0\n")
-        result = fetch_csv_series([str(f)], "all")
+        result = fetch_csv_series([str(f)], "max")
         assert "my_sensor_data" in result

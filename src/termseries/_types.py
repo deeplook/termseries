@@ -27,21 +27,6 @@ class ColorCycle(str, Enum):
     tab20 = "tab20"
 
 
-class YahooPeriod(str, Enum):
-    d1 = "1d"
-    d5 = "5d"
-    d7 = "7d"
-    mo1 = "1mo"
-    mo3 = "3mo"
-    mo6 = "6mo"
-    y1 = "1y"
-    y2 = "2y"
-    y5 = "5y"
-    y10 = "10y"
-    ytd = "ytd"
-    max = "max"
-
-
 class YahooInterval(str, Enum):
     auto = "auto"
     m1 = "1m"
@@ -58,17 +43,3 @@ class LineStyle(str, Enum):
     step_pre = "step-pre"
     step_post = "step-post"
     step_mid = "step-mid"
-
-
-class LastPeriod(str, Enum):
-    all = "all"
-    h1 = "1h"
-    h3 = "3h"
-    h6 = "6h"
-    h12 = "12h"
-    d1 = "1d"
-    d2 = "2d"
-    d7 = "7d"
-    d30 = "30d"
-    d90 = "90d"
-    y1 = "1y"

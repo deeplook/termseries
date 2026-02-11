@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import csv
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
+from termseries._period import filter_period
 from termseries._types import TimeSeries
 
 # ---------------------------------------------------------------------------
@@ -105,41 +106,11 @@ def _read_csv(path: str) -> TimeSeries:
 
 
 # ---------------------------------------------------------------------------
-# Time-window filtering
-# ---------------------------------------------------------------------------
-
-_LAST_DELTAS: dict[str, timedelta | None] = {
-    "all": None,
-    "1h": timedelta(hours=1),
-    "3h": timedelta(hours=3),
-    "6h": timedelta(hours=6),
-    "12h": timedelta(hours=12),
-    "1d": timedelta(days=1),
-    "2d": timedelta(days=2),
-    "7d": timedelta(days=7),
-    "30d": timedelta(days=30),
-    "90d": timedelta(days=90),
-    "1y": timedelta(days=365),
-}
-
-
-def _filter_last(series: TimeSeries, last: str) -> TimeSeries:
-    """Filter *series* to points within *last* from the most recent timestamp."""
-    delta = _LAST_DELTAS.get(last)
-    if delta is None:
-        return series
-    if not series:
-        return series
-    cutoff = series[-1][0] - delta
-    return [(dt, v) for dt, v in series if dt >= cutoff]
-
-
-# ---------------------------------------------------------------------------
 # Public fetch function
 # ---------------------------------------------------------------------------
 
 
-def fetch_csv_series(paths: list[str], last: str) -> dict[str, TimeSeries]:
+def fetch_csv_series(paths: list[str], period: str) -> dict[str, TimeSeries]:
     """Load CSV files and return labelled time-series data.
 
     Conforms to the ``fetch_fn`` signature used by the TUI and CLI.
@@ -154,7 +125,7 @@ def fetch_csv_series(paths: list[str], last: str) -> dict[str, TimeSeries]:
         seen.add(resolved)
 
         series = _read_csv(raw_path)
-        series = _filter_last(series, last)
+        series = filter_period(series, period)
         label = Path(raw_path).stem
         result[label] = series
 

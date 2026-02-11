@@ -12,20 +12,28 @@ import typer
 
 from termseries._csv_source import fetch_csv_series
 from termseries._ha_source import _detect_unit, fetch_ha_series
+from termseries._period import TUI_PERIOD_CHOICES, parse_period, yahoo_auto_interval
 from termseries._render import _output_png, _render_png
 from termseries._terminal import _parse_ratio
 from termseries._tui import _run_interactive
 from termseries._types import (
     ColorCycle,
-    LastPeriod,
     LineStyle,
     Mode,
     YahooInterval,
-    YahooPeriod,
 )
-from termseries.yahoo import _resolve_interval, fetch_yahoo_series
+from termseries.yahoo import fetch_yahoo_series
 
 app = typer.Typer(help="Render time-series data as terminal plots.")
+
+
+def _validate_period(value: str) -> str:
+    """Typer callback that validates a free-form period string."""
+    try:
+        parse_period(value)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    return value
 
 
 @app.callback()  # type: ignore[misc]
@@ -80,22 +88,29 @@ def yahoo(
         list[str], typer.Argument(help="Ticker symbols (e.g. TSLA AAPL)")
     ],
     period: Annotated[
-        YahooPeriod, typer.Option(help="Yahoo chart range")
-    ] = YahooPeriod.d7,
+        str,
+        typer.Option(
+            help="Chart range (e.g. 7d, 2w, 3mo, max)",
+            callback=_validate_period,
+        ),
+    ] = "7d",
     interval: Annotated[
         YahooInterval, typer.Option(help="Chart interval (auto picks by period)")
     ] = YahooInterval.auto,
 ) -> None:
     """Fetch and plot stock data from Yahoo Finance."""
     opts = ctx.obj
-    resolved = _resolve_interval(period.value, interval.value)
+    if interval.value == "auto":
+        resolved = yahoo_auto_interval(period)
+    else:
+        resolved = interval.value
     interval_label = "Daily" if resolved == "1d" else resolved
 
     if opts["interactive"]:
         _run_interactive(
             tickers,
-            period_choices=[p.value for p in YahooPeriod],
-            period=period.value,
+            period_choices=TUI_PERIOD_CHOICES,
+            period=period,
             ratio=opts["ratio"],
             mode=opts["mode"],
             colors=opts["colors"],
@@ -107,12 +122,12 @@ def yahoo(
         )
         raise typer.Exit()
 
-    data = fetch_yahoo_series(tickers, period.value, interval=interval.value)
+    data = fetch_yahoo_series(tickers, period, interval=interval.value)
     r = opts["ratio"] or (4, 1)
     png = _render_png(
         data,
         r,
-        period.value,
+        period,
         color_cycle=opts["colors"],
         mode=opts["mode"],
         style_override=opts["style"],
@@ -120,7 +135,7 @@ def yahoo(
         interval_label=interval_label,
         line_style=opts["line_style"],
     )
-    _output_png(png, tickers, r, period.value, copy=opts["copy"])
+    _output_png(png, tickers, r, period, copy=opts["copy"])
 
 
 @app.command(name="csv")  # type: ignore[misc]
@@ -129,9 +144,13 @@ def csv_cmd(
     files: Annotated[
         list[str], typer.Argument(help="CSV file paths (timestamp, value)")
     ],
-    last: Annotated[
-        LastPeriod, typer.Option(help="Show last N period")
-    ] = LastPeriod.all,
+    period: Annotated[
+        str,
+        typer.Option(
+            help="Show last N period (e.g. 7d, 2w, max)",
+            callback=_validate_period,
+        ),
+    ] = "max",
     unit: Annotated[str, typer.Option(help="Value unit label")] = "value",
 ) -> None:
     """Plot time-series data from local CSV files."""
@@ -139,8 +158,8 @@ def csv_cmd(
     if opts["interactive"]:
         _run_interactive(
             files,
-            period_choices=[p.value for p in LastPeriod],
-            period=last.value,
+            period_choices=TUI_PERIOD_CHOICES,
+            period=period,
             ratio=opts["ratio"],
             mode=opts["mode"],
             colors=opts["colors"],
@@ -153,12 +172,12 @@ def csv_cmd(
         )
         raise typer.Exit()
 
-    data = fetch_csv_series(files, last.value)
+    data = fetch_csv_series(files, period)
     r = opts["ratio"] or (4, 1)
     png = _render_png(
         data,
         r,
-        last.value,
+        period,
         color_cycle=opts["colors"],
         mode=opts["mode"],
         value_unit=unit,
@@ -167,7 +186,7 @@ def csv_cmd(
         line_style=opts["line_style"],
     )
     labels = [Path(f).stem for f in files]
-    _output_png(png, labels, r, last.value, copy=opts["copy"])
+    _output_png(png, labels, r, period, copy=opts["copy"])
 
 
 @app.command()  # type: ignore[misc]
@@ -176,9 +195,13 @@ def ha(
     entities: Annotated[
         list[str], typer.Argument(help="HA entity IDs (e.g. sensor.temperature)")
     ],
-    last: Annotated[
-        LastPeriod, typer.Option(help="Show last N period")
-    ] = LastPeriod.d7,
+    period: Annotated[
+        str,
+        typer.Option(
+            help="Show last N period (e.g. 7d, 2w, max)",
+            callback=_validate_period,
+        ),
+    ] = "7d",
     unit: Annotated[
         str | None, typer.Option(help="Value unit (auto-detect if omitted)")
     ] = None,
@@ -193,8 +216,8 @@ def ha(
     if opts["interactive"]:
         _run_interactive(
             entities,
-            period_choices=[p.value for p in LastPeriod],
-            period=last.value,
+            period_choices=TUI_PERIOD_CHOICES,
+            period=period,
             ratio=opts["ratio"],
             mode=opts["mode"],
             colors=opts["colors"],
@@ -207,12 +230,12 @@ def ha(
         )
         raise typer.Exit()
 
-    data = fetch_ha_series(entities, last.value)
+    data = fetch_ha_series(entities, period)
     r = opts["ratio"] or (4, 1)
     png = _render_png(
         data,
         r,
-        last.value,
+        period,
         color_cycle=opts["colors"],
         mode=opts["mode"],
         value_unit=resolved_unit,
@@ -221,7 +244,7 @@ def ha(
         line_style=opts["line_style"],
     )
     labels = list(data.keys())
-    _output_png(png, labels, r, last.value, copy=opts["copy"])
+    _output_png(png, labels, r, period, copy=opts["copy"])
 
 
 @app.command()  # type: ignore[misc]
