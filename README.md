@@ -85,7 +85,7 @@ termseries -i csv sensor.csv
   dropdowns for period, ratio, mode, colors, plus ticker/file input
 - **Clipboard copy**: `-c` flag or Ctrl+Y in TUI (macOS, Windows, Linux)
 - **Configurable**: aspect ratio (`--ratio`), color cycle (`--colors`),
-  dark/light detection
+  dark/light detection, custom style overrides (`--style`)
 
 ## CSV File Format
 
@@ -114,6 +114,7 @@ from the entity's attributes.
 | `--ratio W:H` | Figure aspect ratio (default: 4:1) |
 | `--mode` | Chart mode: absolute, indexed, log, drawdown, returns, relative |
 | `--colors` | Matplotlib color cycle: tab10, Set1, Set2, Dark2, Accent, Pastel1, tab20 |
+| `--style PATH` | Extra `.mplstyle` file layered on top of the base theme (see [Custom Styles](#custom-styles)) |
 | `-c` / `--copy` | Copy plot to system clipboard |
 | `-i` / `--interactive` | Launch Textual TUI |
 
@@ -130,6 +131,34 @@ export HASS_TOKEN=your_long_lived_access_token
 Create a long-lived access token in HA under **Profile > Security > Long-Lived
 Access Tokens**. The unit label (y-axis) is auto-detected from the entity's
 `unit_of_measurement` attribute; use `--unit` to override.
+
+## Custom Styles
+
+Chart appearance is controlled by Matplotlib `.mplstyle` files. termseries
+ships with two built-in themes (`dark` and `light`) that are automatically
+selected based on your terminal's background color. You can override any
+setting by passing an extra style file with `--style`:
+
+```bash
+# Use thinner lines, no markers
+termseries --style my-overrides.mplstyle yahoo TSLA AAPL
+```
+
+The override file only needs the keys you want to change -- everything else is
+inherited from the base theme. See
+[`example.mplstyle`](example.mplstyle) for a starting point, or the full
+[Matplotlib customization guide](https://matplotlib.org/stable/users/explain/customizing.html)
+for all available keys.
+
+Example override file:
+
+```ini
+# my-overrides.mplstyle
+lines.linewidth:  1.5
+lines.marker:     None        # no markers, just lines
+figure.dpi:       150         # lower DPI for smaller file size
+grid.linestyle:   --          # dashed grid
+```
 
 ## Environment Variables
 
@@ -150,8 +179,11 @@ termseries/
 │   └── termseries/
 │       ├── __init__.py
 │       ├── __main__.py
+│       ├── dark.mplstyle
+│       ├── light.mplstyle
 │       └── py.typed
 ├── tests/
+├── example.mplstyle
 ├── pyproject.toml
 ├── Makefile
 ├── Dockerfile

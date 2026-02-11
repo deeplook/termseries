@@ -5,11 +5,11 @@ from __future__ import annotations
 import base64
 import os
 import struct
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 from io import BytesIO
+from pathlib import Path
 
 import typer
 
@@ -32,7 +32,7 @@ def _print_kitty_png(png_bytes: bytes) -> None:
 def _print_sixel_png(png_bytes: bytes) -> None:
     """Print a PNG inline as Sixel graphics."""
     from PIL import Image as PILImage
-    from textual_image.renderable.sixel import (  # type: ignore[attr-defined]
+    from textual_image.renderable.sixel import (
         image_to_sixels,
     )
 

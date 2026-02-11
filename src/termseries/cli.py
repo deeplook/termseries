@@ -9,23 +9,27 @@ from typing import Annotated
 
 import typer
 
+from termseries._csv_source import fetch_csv_series
+from termseries._ha_source import _detect_unit, fetch_ha_series
 from termseries._render import _output_png, _render_png
 from termseries._terminal import _parse_ratio
 from termseries._tui import _run_interactive
-from termseries._csv_source import fetch_csv_series
-from termseries._ha_source import _detect_unit, fetch_ha_series
 from termseries._types import ColorCycle, LastPeriod, Mode, YahooPeriod
 from termseries.yahoo import fetch_yahoo_series
 
 app = typer.Typer(help="Render time-series data as terminal plots.")
 
 
-@app.callback()
+@app.callback()  # type: ignore[misc]
 def main(
     ctx: typer.Context,
     ratio: Annotated[str, typer.Option(help='Aspect ratio "W:H"')] = "4:1",
     mode: Annotated[Mode, typer.Option(help="Chart mode")] = Mode.absolute,
     colors: Annotated[ColorCycle, typer.Option(help="Color cycle")] = ColorCycle.tab10,
+    style: Annotated[
+        Path | None,
+        typer.Option(help="Extra .mplstyle file layered on top of the base theme"),
+    ] = None,
     copy: Annotated[
         bool, typer.Option("--copy", "-c", help="Copy to clipboard")
     ] = False,
@@ -37,11 +41,12 @@ def main(
     ctx.obj["ratio"] = _parse_ratio(ratio)
     ctx.obj["mode"] = mode.value
     ctx.obj["colors"] = colors.value
+    ctx.obj["style"] = style
     ctx.obj["copy"] = copy
     ctx.obj["interactive"] = interactive
 
 
-@app.command()
+@app.command()  # type: ignore[misc]
 def yahoo(
     ctx: typer.Context,
     tickers: Annotated[
@@ -72,11 +77,12 @@ def yahoo(
         period.value,
         color_cycle=opts["colors"],
         mode=opts["mode"],
+        style_override=opts["style"],
     )
     _output_png(png, tickers, opts["ratio"], period.value, copy=opts["copy"])
 
 
-@app.command(name="csv")
+@app.command(name="csv")  # type: ignore[misc]
 def csv_cmd(
     ctx: typer.Context,
     files: Annotated[
@@ -110,12 +116,13 @@ def csv_cmd(
         color_cycle=opts["colors"],
         mode=opts["mode"],
         value_unit=unit,
+        style_override=opts["style"],
     )
     labels = [Path(f).stem for f in files]
     _output_png(png, labels, opts["ratio"], last.value, copy=opts["copy"])
 
 
-@app.command()
+@app.command()  # type: ignore[misc]
 def ha(
     ctx: typer.Context,
     entities: Annotated[
@@ -156,12 +163,13 @@ def ha(
         color_cycle=opts["colors"],
         mode=opts["mode"],
         value_unit=resolved_unit,
+        style_override=opts["style"],
     )
     labels = list(data.keys())
     _output_png(png, labels, opts["ratio"], last.value, copy=opts["copy"])
 
 
-@app.command()
+@app.command()  # type: ignore[misc]
 def demo() -> None:
     """Run three demo Yahoo Finance plots to showcase different modes."""
     import shlex

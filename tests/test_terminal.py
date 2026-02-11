@@ -9,10 +9,10 @@ import typer
 
 from termseries._terminal import (
     _detect_dark_terminal,
+    _is_docker,
     _is_iterm2,
     _is_kitty,
     _is_sixel_terminal,
-    _is_docker,
     _is_ssh_session,
     _parse_ratio,
     _png_dimensions,
@@ -138,14 +138,22 @@ class TestIsSshSession:
 
 
 class TestIsDocker:
-    def test_inside_docker(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_inside_docker(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         dockerenv = tmp_path / ".dockerenv"
         dockerenv.touch()
-        monkeypatch.setattr("termseries._terminal.Path", lambda p: tmp_path / p.lstrip("/"))
+        monkeypatch.setattr(
+            "termseries._terminal.Path", lambda p: tmp_path / p.lstrip("/")
+        )
         assert _is_docker() is True
 
-    def test_outside_docker(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("termseries._terminal.Path", lambda p: tmp_path / p.lstrip("/"))
+    def test_outside_docker(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "termseries._terminal.Path", lambda p: tmp_path / p.lstrip("/")
+        )
         assert _is_docker() is False
 
 
@@ -356,7 +364,7 @@ class TestPrintKittyPng:
 
 
 class TestPrintSixelPng:
-    @pytest.mark.filterwarnings("ignore::DeprecationWarning:textual_image")
+    @pytest.mark.filterwarnings("ignore::DeprecationWarning:textual_image")  # type: ignore[misc]
     def test_dcs_framing(
         self, small_png: bytes, capsys: pytest.CaptureFixture[str]
     ) -> None:

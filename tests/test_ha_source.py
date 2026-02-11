@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 import json
-from datetime import datetime, timezone
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -69,7 +69,7 @@ class TestHaRequest:
             _ha_request("/api/states")
         # Check that the URL was built correctly (no double slash)
         called_req = mock_urlopen.call_args[0][0]
-        assert "http://ha.local:8123/api/states" == called_req.full_url
+        assert called_req.full_url == "http://ha.local:8123/api/states"
 
     def test_connection_error_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
@@ -77,12 +77,14 @@ class TestHaRequest:
 
         import urllib.error
 
-        with patch(
-            "termseries._ha_source.urllib.request.urlopen",
-            side_effect=urllib.error.URLError("Connection refused"),
+        with (
+            patch(
+                "termseries._ha_source.urllib.request.urlopen",
+                side_effect=urllib.error.URLError("Connection refused"),
+            ),
+            pytest.raises(RuntimeError, match="Failed to connect"),
         ):
-            with pytest.raises(RuntimeError, match="Failed to connect"):
-                _ha_request("/api/states")
+            _ha_request("/api/states")
 
 
 # ===================================================================
@@ -124,9 +126,7 @@ class TestFetchHaEntity:
         timestamps = [dt for dt, _ in series]
         assert timestamps == sorted(timestamps)
 
-    def test_filters_non_numeric_states(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_filters_non_numeric_states(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
@@ -151,9 +151,11 @@ class TestFetchHaEntity:
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         resp = _mock_response([[]])
-        with patch("termseries._ha_source.urllib.request.urlopen", return_value=resp):
-            with pytest.raises(RuntimeError, match="No history data"):
-                _fetch_ha_entity("sensor.temp", "7d")
+        with (
+            patch("termseries._ha_source.urllib.request.urlopen", return_value=resp),
+            pytest.raises(RuntimeError, match="No history data"),
+        ):
+            _fetch_ha_entity("sensor.temp", "7d")
 
     def test_all_non_numeric_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
@@ -166,18 +168,22 @@ class TestFetchHaEntity:
             ]
         ]
         resp = _mock_response(history)
-        with patch("termseries._ha_source.urllib.request.urlopen", return_value=resp):
-            with pytest.raises(RuntimeError, match="No numeric states"):
-                _fetch_ha_entity("sensor.temp", "7d")
+        with (
+            patch("termseries._ha_source.urllib.request.urlopen", return_value=resp),
+            pytest.raises(RuntimeError, match="No numeric states"),
+        ):
+            _fetch_ha_entity("sensor.temp", "7d")
 
     def test_no_data_at_all_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         resp = _mock_response([])
-        with patch("termseries._ha_source.urllib.request.urlopen", return_value=resp):
-            with pytest.raises(RuntimeError, match="No history data"):
-                _fetch_ha_entity("sensor.temp", "7d")
+        with (
+            patch("termseries._ha_source.urllib.request.urlopen", return_value=resp),
+            pytest.raises(RuntimeError, match="No history data"),
+        ):
+            _fetch_ha_entity("sensor.temp", "7d")
 
     def test_sorts_unsorted_history(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
@@ -207,9 +213,7 @@ class TestFetchHaEntity:
 
 
 class TestDetectUnit:
-    def test_returns_unit_of_measurement(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_returns_unit_of_measurement(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
@@ -235,9 +239,7 @@ class TestDetectUnit:
         with patch("termseries._ha_source.urllib.request.urlopen", return_value=resp):
             assert _detect_unit("sensor.custom") == "value"
 
-    def test_empty_attributes_fallback(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_empty_attributes_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
@@ -290,10 +292,10 @@ class TestFetchHaSeries:
             "state_b": state_b,
         }
 
-    def _side_effect(self, mocks: dict[str, object]):
+    def _side_effect(self, mocks: dict[str, Any]) -> Any:
         """Return a urlopen side-effect that dispatches by URL path."""
 
-        def urlopen(req, **kwargs):
+        def urlopen(req: Any, **kwargs: Any) -> Any:
             url = req.full_url
             if "/api/history/period/" in url and "sensor.temp" in url:
                 return _mock_response(mocks["history_a"])
@@ -350,9 +352,7 @@ class TestFetchHaSeries:
 
         assert len(result) == 1
 
-    def test_fallback_label_to_entity_id(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_fallback_label_to_entity_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
@@ -367,7 +367,7 @@ class TestFetchHaSeries:
             "attributes": {},
         }
 
-        def urlopen(req, **kwargs):
+        def urlopen(req: Any, **kwargs: Any) -> Any:
             url = req.full_url
             if "/api/history/period/" in url:
                 return _mock_response(history)
@@ -375,9 +375,7 @@ class TestFetchHaSeries:
                 return _mock_response(state)
             raise ValueError(f"Unexpected URL: {url}")
 
-        with patch(
-            "termseries._ha_source.urllib.request.urlopen", side_effect=urlopen
-        ):
+        with patch("termseries._ha_source.urllib.request.urlopen", side_effect=urlopen):
             result = fetch_ha_series(["sensor.no_name"], "all")
 
         assert "sensor.no_name" in result

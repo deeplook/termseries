@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+import matplotlib.pyplot as plt
 import pytest
 
 from termseries._render import _output_png, _render_png
@@ -135,7 +136,7 @@ class TestOutputPng:
         monkeypatch.setenv("TERM", "xterm-kitty")
         monkeypatch.chdir(tmp_path)
         _output_png(small_png, ["TSLA"], (4, 1), "7d")
-        written = tmp_path / "termseries_TSLA_7d_4x1.png"  # type: ignore[operator]
+        written = tmp_path / "termseries_TSLA_7d_4x1.png"
         assert written.exists()
         assert written.read_bytes() == small_png
 
@@ -147,7 +148,7 @@ class TestOutputPng:
     ) -> None:
         monkeypatch.chdir(tmp_path)
         _output_png(small_png, ["AAPL", "MSFT"], (16, 9), "1mo")
-        written = tmp_path / "termseries_AAPL-MSFT_1mo_16x9.png"  # type: ignore[operator]
+        written = tmp_path / "termseries_AAPL-MSFT_1mo_16x9.png"
         assert written.exists()
         assert written.read_bytes() == small_png
 
@@ -189,5 +190,40 @@ class TestOutputPng:
         monkeypatch.chdir(tmp_path)
         tickers = ["A", "B", "C", "D", "E", "F", "G", "H"]
         _output_png(small_png, tickers, (4, 1), "7d")
-        written = tmp_path / "termseries_A-B-C-D-E-F-plus2_7d_4x1.png"  # type: ignore[operator]
+        written = tmp_path / "termseries_A-B-C-D-E-F-plus2_7d_4x1.png"
         assert written.exists()
+
+
+# ===================================================================
+# Style files
+# ===================================================================
+
+
+class TestStyleFiles:
+    def test_dark_style_loadable(self) -> None:
+        plt.style.use("termseries.dark")
+
+    def test_light_style_loadable(self) -> None:
+        plt.style.use("termseries.light")
+
+    def test_dark_sets_black_facecolor(self) -> None:
+        with plt.style.context("termseries.dark"):
+            assert plt.rcParams["figure.facecolor"] == "black"
+
+    def test_light_sets_white_facecolor(self) -> None:
+        with plt.style.context("termseries.light"):
+            assert plt.rcParams["figure.facecolor"] == "white"
+
+    def test_style_sets_dpi(self) -> None:
+        with plt.style.context("termseries.dark"):
+            assert plt.rcParams["figure.dpi"] == 200
+
+    def test_style_override(self, tmp_path: pytest.TempPathFactory) -> None:
+        override = tmp_path / "custom.mplstyle"
+        override.write_text("figure.dpi: 100\n")
+        series = {"A": make_series()}
+        png = _render_png(series, (4, 1), "7d", style_override=override)
+        from termseries._terminal import _png_dimensions
+
+        w, _h = _png_dimensions(png)
+        assert w == 1200  # 12in * 100dpi

@@ -1,0 +1,42 @@
+# termseries light theme
+# Load with:  plt.style.use("termseries.light")
+
+# --- Light background colors -----------------------------------------------
+figure.facecolor: white
+axes.facecolor:   white
+text.color:       black
+axes.labelcolor:  black
+axes.edgecolor:   black
+xtick.color:      black
+ytick.color:      black
+
+# --- Lines -----------------------------------------------------------------
+lines.linewidth:  2
+lines.marker:     o
+lines.markersize: 6
+
+# --- Axes ------------------------------------------------------------------
+axes.grid:        True
+axes.titlesize:   14
+axes.labelsize:   12
+
+# --- Grid ------------------------------------------------------------------
+grid.alpha:       0.3
+grid.linewidth:   0.5
+grid.linestyle:   -
+
+# --- Legend -----------------------------------------------------------------
+legend.loc:       best
+legend.fontsize:  10
+legend.framealpha: 0.8
+
+# --- Ticks -----------------------------------------------------------------
+xtick.labelsize:  10
+ytick.labelsize:  10
+
+# --- Figure ----------------------------------------------------------------
+figure.dpi:       200
+figure.constrained_layout.use: True
+
+# --- Save ------------------------------------------------------------------
+savefig.facecolor: auto

@@ -35,7 +35,7 @@ def _run_interactive(
     from textual.widgets._select import SelectOverlay
     from textual_image.widget import Image
 
-    class TermSeriesApp(App):  # type: ignore[type-arg]
+    class TermSeriesApp(App):  # type: ignore[misc]
         BINDINGS = [
             ("escape", "quit", "Quit"),
             ("ctrl+d", "quit", "Quit"),
@@ -98,7 +98,9 @@ def _run_interactive(
                     if ratio_str in ratios:
                         s2.value = ratio_str
                     else:
-                        s2 = Select.from_values([ratio_str, *ratios], prompt="Ratio", allow_blank=True)
+                        s2 = Select.from_values(
+                            [ratio_str, *ratios], prompt="Ratio", allow_blank=True
+                        )
                         s2.value = ratio_str
                 elif has_columns:
                     s2.value = "fit"
@@ -129,7 +131,9 @@ def _run_interactive(
                     "Pastel1",
                     "tab20",
                 ]
-                s3 = Select.from_values(color_options, prompt="Colors", allow_blank=True)
+                s3 = Select.from_values(
+                    color_options, prompt="Colors", allow_blank=True
+                )
                 s3.value = colors if colors and colors in color_options else "tab10"
                 max_len3 = max(len(v) for v in [*color_options, "Colors"])
                 s3.styles.width = max_len3 + 6

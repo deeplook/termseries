@@ -1,0 +1,24 @@
+# Example termseries style override
+#
+# Usage:  termseries --style example.mplstyle yahoo TSLA AAPL
+#
+# Only the keys listed here are overridden; everything else is
+# inherited from the base dark/light theme.
+#
+# Full list of keys:
+#   https://matplotlib.org/stable/users/explain/customizing.html
+
+# --- Lines -----------------------------------------------------------------
+lines.linewidth:  1.5
+lines.marker:     None        # no markers, just lines
+# lines.linestyle:  --        # dashed lines
+
+# --- Grid ------------------------------------------------------------------
+# grid.alpha:       0.5
+# grid.linestyle:   --
+
+# --- Figure ----------------------------------------------------------------
+# figure.dpi:       150       # lower DPI for smaller file size
+
+# --- Color cycle (Tableau 10 palette) --------------------------------------
+# axes.prop_cycle: cycler('color', ['1f77b4', 'ff7f0e', '2ca02c', 'd62728', '9467bd', '8c564b', 'e377c2', '7f7f7f', 'bcbd22', '17becf'])

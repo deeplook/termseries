@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 from io import BytesIO
+from pathlib import Path
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -12,10 +13,10 @@ import matplotlib.pyplot as plt
 from termseries._terminal import (
     _copy_to_clipboard,
     _detect_dark_terminal,
+    _is_docker,
     _is_iterm2,
     _is_kitty,
     _is_sixel_terminal,
-    _is_docker,
     _is_ssh_session,
     _png_dimensions,
     _print_iterm2_png,
@@ -33,6 +34,7 @@ def _render_png(
     color_cycle: str | None = None,
     mode: str = "absolute",
     value_unit: str = "USD",
+    style_override: Path | None = None,
 ) -> bytes:
     """Render a time-series chart and return PNG bytes.
 
@@ -55,13 +57,19 @@ def _render_png(
         Chart mode (absolute, indexed, log, drawdown, returns, relative).
     value_unit : str
         Unit label for the y-axis (e.g. "USD", "C"). Defaults to "USD".
+    style_override : Path | None
+        Extra .mplstyle file layered on top of the base theme.
     """
     names = list(series.keys())
     if not names:
         raise ValueError("No data series provided. Pass at least one series.")
 
     dark = _detect_dark_terminal()
-    plt.style.use("dark_background" if dark else "default")
+    base_style = "termseries.dark" if dark else "termseries.light"
+    if style_override:
+        plt.style.use([base_style, style_override])
+    else:
+        plt.style.use(base_style)
 
     if figsize:
         width_in, height_in = figsize
@@ -71,18 +79,12 @@ def _render_png(
         height_in = width_in * (ratio_h / ratio_w)
     if color_cycle:
         cmap = matplotlib.colormaps[color_cycle]
-        plt.rcParams["axes.prop_cycle"] = plt.cycler(  # type: ignore[attr-defined]
+        plt.rcParams["axes.prop_cycle"] = plt.cycler(
             color=[cmap(i) for i in range(cmap.N)]
             if cmap.N <= 20
             else [cmap(x) for x in [i / 10 for i in range(10)]]
         )
-    fig, ax = plt.subplots(figsize=(width_in, height_in), constrained_layout=True)
-    if dark:
-        fig.patch.set_facecolor("black")
-        ax.set_facecolor("black")
-    else:
-        fig.patch.set_facecolor("white")
-        ax.set_facecolor("white")
+    fig, ax = plt.subplots(figsize=(width_in, height_in))
 
     if mode == "relative":
         if len(names) != 2:
@@ -98,7 +100,7 @@ def _render_png(
             raise RuntimeError(f"No overlapping dates for {names[0]} and {names[1]}.")
         xs = common
         ys = [closes_a[d] / closes_b[d] for d in common]
-        ax.plot(xs, ys, marker="o", linewidth=2, label=f"{names[0]}/{names[1]}")  # type: ignore[arg-type]
+        ax.plot(xs, ys, label=f"{names[0]}/{names[1]}")
     else:
         for name, points in series.items():
             xs = [dt for dt, _ in points]
@@ -116,8 +118,7 @@ def _render_png(
             elif mode == "returns" and len(ys) >= 2:
                 xs = xs[1:]
                 ys = [(ys[i] / ys[i - 1] - 1.0) * 100.0 for i in range(1, len(ys))]
-            ax.plot(xs, ys, marker="o", linewidth=2, label=name)  # type: ignore[arg-type]
-
+            ax.plot(xs, ys, label=name)
     if mode == "log":
         ax.set_yscale("log")
 
@@ -142,12 +143,11 @@ def _render_png(
         "relative": f"{names[0]}/{names[1]} ratio" if mode == "relative" else "",
     }
     ax.set_ylabel(ylabel.get(mode, f"Close ({value_unit})"))
-    ax.grid(True, alpha=0.3)
-    ax.legend(loc="best", ncols=min(4, max(1, len(names))))
+    ax.legend(ncols=min(4, max(1, len(names))))
     fig.autofmt_xdate()
 
     buf = BytesIO()
-    fig.savefig(buf, format="png", dpi=200, facecolor=fig.get_facecolor())
+    fig.savefig(buf, format="png")
     plt.close(fig)
     return buf.getvalue()
 

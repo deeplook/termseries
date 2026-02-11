@@ -9,7 +9,7 @@ from PIL import Image as PILImage
 from termseries import TimeSeries
 
 
-@pytest.fixture()
+@pytest.fixture()  # type: ignore[misc]
 def small_png() -> bytes:
     """A minimal 2x3 red PNG created via Pillow."""
     img = PILImage.new("RGB", (2, 3), color=(255, 0, 0))
@@ -18,7 +18,7 @@ def small_png() -> bytes:
     return buf.getvalue()
 
 
-@pytest.fixture()
+@pytest.fixture()  # type: ignore[misc]
 def large_png() -> bytes:
     """A PNG large enough that its base64 exceeds one 4096-byte chunk."""
     import random
@@ -35,7 +35,7 @@ def large_png() -> bytes:
     return buf.getvalue()
 
 
-@pytest.fixture()
+@pytest.fixture()  # type: ignore[misc]
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove all terminal-detection env vars so tests start clean."""
     for var in (
