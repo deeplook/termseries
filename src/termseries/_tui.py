@@ -8,6 +8,7 @@ from io import BytesIO
 from termseries._render import _render_png
 from termseries._terminal import (
     _copy_to_clipboard,
+    _is_docker,
     _is_ssh_session,
     _parse_ratio,
     _png_dimensions,
@@ -31,6 +32,7 @@ def _run_interactive(
     from textual.app import App, ComposeResult
     from textual.containers import Horizontal
     from textual.widgets import Input, Select
+    from textual.widgets._select import SelectOverlay
     from textual_image.widget import Image
 
     class TermSeriesApp(App):  # type: ignore[type-arg]
@@ -80,7 +82,7 @@ def _run_interactive(
             has_columns = bool(initial_columns)
             with Horizontal(id="menu"):
                 periods = period_choices
-                s1 = Select.from_values(periods, prompt="Period")
+                s1 = Select.from_values(periods, prompt="Period", allow_blank=True)
                 if period and period in periods:
                     s1.value = period
                 elif has_columns:
@@ -90,13 +92,13 @@ def _run_interactive(
                 yield s1
 
                 ratios = ["fit", "4:1", "3:1", "2:1"]
-                s2 = Select.from_values(ratios, prompt="Ratio")
+                s2 = Select.from_values(ratios, prompt="Ratio", allow_blank=True)
                 if ratio:
                     ratio_str = f"{ratio[0]}:{ratio[1]}"
                     if ratio_str in ratios:
                         s2.value = ratio_str
                     else:
-                        s2 = Select.from_values([ratio_str, *ratios], prompt="Ratio")
+                        s2 = Select.from_values([ratio_str, *ratios], prompt="Ratio", allow_blank=True)
                         s2.value = ratio_str
                 elif has_columns:
                     s2.value = "fit"
@@ -112,7 +114,7 @@ def _run_interactive(
                     "returns",
                     "relative",
                 ]
-                s_mode = Select.from_values(modes, prompt="Mode")
+                s_mode = Select.from_values(modes, prompt="Mode", allow_blank=True)
                 s_mode.value = mode if mode and mode in modes else "absolute"
                 max_len_mode = max(len(v) for v in [*modes, "Mode"])
                 s_mode.styles.width = max_len_mode + 6
@@ -127,7 +129,7 @@ def _run_interactive(
                     "Pastel1",
                     "tab20",
                 ]
-                s3 = Select.from_values(color_options, prompt="Colors")
+                s3 = Select.from_values(color_options, prompt="Colors", allow_blank=True)
                 s3.value = colors if colors and colors in color_options else "tab10"
                 max_len3 = max(len(v) for v in [*color_options, "Colors"])
                 s3.styles.width = max_len3 + 6
@@ -217,13 +219,17 @@ def _run_interactive(
                 _copy_to_clipboard(self._last_png)
                 w, h = _png_dimensions(self._last_png)
                 msg = f"Plot ({w}x{h}) copied to clipboard"
-                if _is_ssh_session():
+                if _is_docker():
+                    msg += " (Docker -- may not reach your local machine)"
+                elif _is_ssh_session():
                     msg += " (remote -- may not reach your local machine)"
                 self.notify(msg)
             except Exception as e:
                 self.notify(f"Copy failed: {e}", severity="error")
 
         def on_mount(self) -> None:
+            for sel in self.query(Select):
+                sel.query_one(SelectOverlay).disable_option_at_index(0)
             if initial_columns:
                 self.callback(*self._get_selections())
 
