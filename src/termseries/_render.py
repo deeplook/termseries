@@ -15,6 +15,7 @@ from termseries._terminal import (
     _is_iterm2,
     _is_kitty,
     _is_sixel_terminal,
+    _is_docker,
     _is_ssh_session,
     _png_dimensions,
     _print_iterm2_png,
@@ -166,7 +167,9 @@ def _output_png(
         _copy_to_clipboard(png)
         w, h = _png_dimensions(png)
         msg = f"Plot ({w}x{h}) copied to clipboard."
-        if _is_ssh_session():
+        if _is_docker():
+            msg += " (Docker container -- may not reach your local clipboard)"
+        elif _is_ssh_session():
             msg += " (remote machine -- may not reach your local clipboard)"
         print(msg)
 

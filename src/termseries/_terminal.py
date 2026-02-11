@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import os
 import struct
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
@@ -86,6 +87,11 @@ def _png_dimensions(png_bytes: bytes) -> tuple[int, int]:
 def _is_ssh_session() -> bool:
     """Return True if running inside an SSH session."""
     return bool(os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_CLIENT"))
+
+
+def _is_docker() -> bool:
+    """Return True if running inside a Docker container."""
+    return Path("/.dockerenv").exists()
 
 
 def _copy_to_clipboard(png_bytes: bytes) -> None:
