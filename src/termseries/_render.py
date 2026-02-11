@@ -38,6 +38,7 @@ def _render_png(
     value_unit: str = "USD",
     style_override: Path | None = None,
     tz: str = "UTC",
+    interval_label: str = "Daily",
 ) -> bytes:
     """Render a time-series chart and return PNG bytes.
 
@@ -146,7 +147,7 @@ def _render_png(
         "indexed": "Indexed",
         "log": "Close (log)" if is_stock else "Log",
         "drawdown": "Drawdown",
-        "returns": "Daily Returns",
+        "returns": f"{interval_label} Returns",
         "relative": f"{names[0]}/{names[1]}" if mode == "relative" else "",
     }
     prefix = title_labels.get(mode, "")
@@ -162,7 +163,7 @@ def _render_png(
         "indexed": "% of start",
         "log": f"Close ({value_unit}, log)" if is_stock else f"{value_unit} (log)",
         "drawdown": "% from peak",
-        "returns": "Daily change (%)",
+        "returns": f"{interval_label} change (%)",
         "relative": f"{names[0]}/{names[1]} ratio" if mode == "relative" else "",
     }
     ax.set_ylabel(ylabel.get(mode, value_unit))

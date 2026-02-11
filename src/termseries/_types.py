@@ -42,6 +42,17 @@ class YahooPeriod(str, Enum):
     max = "max"
 
 
+class YahooInterval(str, Enum):
+    auto = "auto"
+    m1 = "1m"
+    m5 = "5m"
+    m15 = "15m"
+    m30 = "30m"
+    m60 = "60m"
+    m90 = "90m"
+    d1 = "1d"
+
+
 class LastPeriod(str, Enum):
     all = "all"
     h1 = "1h"

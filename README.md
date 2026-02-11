@@ -13,7 +13,7 @@ or saves to file, with an optional interactive Textual TUI.
 ## Features
 
 ### Data Sources
-- Fetch stock/crypto/index prices from Yahoo Finance via the `yahoo` subcommand
+- Fetch stock/crypto/index prices from Yahoo Finance via the `yahoo` subcommand, with auto-picked intra-day intervals for short periods (e.g. 5m for 1d, 15m for 5d/7d)
 - Plot Home Assistant sensor history via the `ha` subcommand (REST API)
 - Load local two-column CSV files (timestamp, value) via the `csv` subcommand
 - Auto-detect and skip CSV headers, blank lines, NaN/Inf values
@@ -23,7 +23,7 @@ or saves to file, with an optional interactive Textual TUI.
 
 ### Chart Modes
 - Absolute values (default), indexed to 100%, logarithmic scale
-- Drawdown from running peak, daily returns, and relative price ratio
+- Drawdown from running peak, interval-aware returns (label adapts to interval), and relative price ratio
 - Configurable time windows per data source (1h–max for Yahoo, 1h–1y/all for CSV/HA)
 
 ### Terminal Rendering
@@ -82,6 +82,12 @@ termseries --mode log yahoo --period 5y AAPL MSFT GOOGL
 
 # Drawdown chart
 termseries --mode drawdown yahoo --period 1y TSLA AAPL
+
+# Intra-day: 1-day period auto-picks 5-minute intervals
+termseries yahoo TSLA --period 1d
+
+# Explicit 1-minute interval override
+termseries yahoo TSLA --interval 1m --period 1d
 
 # Relative price ratio (exactly 2 tickers)
 termseries --mode relative yahoo --period 1y AAPL MSFT
@@ -156,6 +162,23 @@ from the entity's attributes.
 | `--style PATH` | Extra `.mplstyle` file layered on top of the base theme (see [Custom Styles](#custom-styles)) |
 | `-c` / `--copy` | Copy plot to system clipboard |
 | `-i` / `--interactive` | Launch Textual TUI |
+
+### Yahoo-specific Options
+
+| Option | Description |
+|---|---|
+| `--period` | Chart range: 1d, 5d, 7d (default), 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max |
+| `--interval` | Data interval: auto (default), 1m, 5m, 15m, 30m, 60m, 90m, 1d |
+
+When `--interval auto` (the default), termseries picks a sensible interval based
+on the period:
+
+| Period | Auto interval |
+|--------|--------------|
+| 1d     | 5m           |
+| 5d     | 15m          |
+| 7d     | 15m          |
+| 1mo+   | 1d           |
 
 ## Home Assistant Setup
 

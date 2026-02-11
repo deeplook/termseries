@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from functools import partial
 from pathlib import Path
 from typing import Annotated
 
@@ -14,8 +15,8 @@ from termseries._ha_source import _detect_unit, fetch_ha_series
 from termseries._render import _output_png, _render_png
 from termseries._terminal import _parse_ratio
 from termseries._tui import _run_interactive
-from termseries._types import ColorCycle, LastPeriod, Mode, YahooPeriod
-from termseries.yahoo import fetch_yahoo_series
+from termseries._types import ColorCycle, LastPeriod, Mode, YahooInterval, YahooPeriod
+from termseries.yahoo import _resolve_interval, fetch_yahoo_series
 
 app = typer.Typer(help="Render time-series data as terminal plots.")
 
@@ -70,9 +71,15 @@ def yahoo(
     period: Annotated[
         YahooPeriod, typer.Option(help="Yahoo chart range")
     ] = YahooPeriod.d7,
+    interval: Annotated[
+        YahooInterval, typer.Option(help="Chart interval (auto picks by period)")
+    ] = YahooInterval.auto,
 ) -> None:
     """Fetch and plot stock data from Yahoo Finance."""
     opts = ctx.obj
+    resolved = _resolve_interval(period.value, interval.value)
+    interval_label = "Daily" if resolved == "1d" else resolved
+
     if opts["interactive"]:
         _run_interactive(
             tickers,
@@ -81,14 +88,14 @@ def yahoo(
             ratio=opts["ratio"],
             mode=opts["mode"],
             colors=opts["colors"],
-            fetch_fn=fetch_yahoo_series,
+            fetch_fn=partial(fetch_yahoo_series, interval=interval.value),
             style_override=opts["style"],
             reload_interval=opts["reload"],
             tz=opts["tz"],
         )
         raise typer.Exit()
 
-    data = fetch_yahoo_series(tickers, period.value)
+    data = fetch_yahoo_series(tickers, period.value, interval=interval.value)
     r = opts["ratio"] or (4, 1)
     png = _render_png(
         data,
@@ -98,6 +105,7 @@ def yahoo(
         mode=opts["mode"],
         style_override=opts["style"],
         tz=opts["tz"],
+        interval_label=interval_label,
     )
     _output_png(png, tickers, r, period.value, copy=opts["copy"])
 
