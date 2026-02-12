@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from termseries._types import TimeSeries
 
@@ -50,6 +50,7 @@ TUI_PERIOD_CHOICES: list[str] = [
     "5y",
     "10y",
     "max",
+    "auto",
 ]
 
 
@@ -59,28 +60,57 @@ def parse_period(value: str) -> timedelta | None:
     Returns ``None`` for ``"max"``.  Raises ``ValueError`` on invalid input.
     Approximate conversions: ``mo`` = 30 days, ``y`` = 365 days.
     """
-    if value == "max":
+    if value in ("max", "auto"):
         return None
     m = _PERIOD_RE.match(value)
     if not m:
         raise ValueError(
             f"Invalid period {value!r}. "
-            "Use <number><unit> (e.g. 14d, 2w, 3mo) or 'max'."
+            "Use <number><unit> (e.g. 14d, 2w, 3mo), 'max', or 'auto'."
         )
     n = int(m.group(1))
     unit = m.group(2)
     return _UNIT_TO_TIMEDELTA[unit] * n
 
 
-def filter_period(series: TimeSeries, period: str) -> TimeSeries:
-    """Filter *series* to points within *period* of the most recent timestamp."""
+def filter_period(
+    series: TimeSeries,
+    period: str,
+    *,
+    reference: datetime | None = None,
+) -> TimeSeries:
+    """Filter *series* to points within *period* of a reference time.
+
+    *reference* defaults to the most recent timestamp in the series.
+    Pass an explicit value (e.g. ``datetime.now()``) to anchor the
+    window to a fixed point so that multiple series share the same range.
+    """
     delta = parse_period(period)
     if delta is None:
         return series
     if not series:
         return series
-    cutoff = series[-1][0] - delta
+    cutoff = (reference or series[-1][0]) - delta
     return [(dt, v) for dt, v in series if dt >= cutoff]
+
+
+def xlim_now(
+    period: str, data: dict[str, TimeSeries]
+) -> tuple[datetime, datetime] | None:
+    """Compute an x-axis range ending at *now* for the given period and data.
+
+    For a specific period the window is ``[now - delta, now]``.
+    For ``"max"`` it spans from the earliest data point to now.
+    For ``"auto"`` returns ``None`` so matplotlib auto-fits to the data.
+    """
+    if period == "auto":
+        return None
+    now = datetime.now(timezone.utc)
+    delta = parse_period(period)
+    if delta is not None:
+        return (now - delta, now)
+    all_ts = [dt for pts in data.values() for dt, _ in pts]
+    return (min(all_ts), now) if all_ts else None
 
 
 def yahoo_covering_range(period: str) -> str:

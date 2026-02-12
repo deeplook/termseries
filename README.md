@@ -24,7 +24,7 @@ or saves to file, with an optional interactive Textual TUI.
 ### Chart Modes
 - Absolute values (default), indexed to 100%, logarithmic scale
 - Drawdown from running peak, interval-aware returns (label adapts to interval), and relative price ratio
-- Unified free-form period syntax across all subcommands (`<number><unit>`, e.g. `14d`, `2w`, `3mo`, or `max`)
+- Unified free-form period syntax across all subcommands (`<number><unit>`, e.g. `14d`, `2w`, `3mo`, `max`, or `auto`)
 
 ### Terminal Rendering
 - Auto-detect Kitty, iTerm2, and Sixel-capable terminals for inline PNG display
@@ -151,10 +151,11 @@ epochs. Blank lines and NaN/Inf values are silently skipped. Naive timestamps
 ```
 
 Each file becomes one series labelled by its filename (without extension). The
-`--period` option filters to a time window from the most recent data point
-using free-form `<number><unit>` syntax (e.g. `7d`, `2w`, `3mo`) or `max`
-(default, shows all data). The `--unit` option sets the y-axis label
-(default: `value`).
+`--period` option filters to a now-anchored time window using free-form
+`<number><unit>` syntax (e.g. `7d`, `2w`, `3mo`). Special values: `max`
+(default) shows all data with the x-axis extending to now; `auto` auto-fits
+the x-axis to the data with no empty space. The `--unit` option sets the
+y-axis label (default: `value`).
 
 The `ha` subcommand uses the same `--period` syntax and auto-detects the unit
 from the entity's attributes.
@@ -184,7 +185,8 @@ All subcommands accept `--period` with free-form `<number><unit>` values:
 | `w`  | `2w`    | weeks   |
 | `mo` | `3mo`   | months (≈30 days) |
 | `y`  | `1y`    | years (≈365 days) |
-| `max`|         | all available data |
+| `max`|         | all data, x-axis extends to now |
+| `auto`|        | all data, x-axis fits to data |
 
 For Yahoo, non-native periods (e.g. `14d`, `2w`) are handled automatically by
 overfetching the next-larger native range and trimming client-side.
@@ -193,7 +195,7 @@ overfetching the next-larger native range and trimming client-side.
 
 | Option | Description |
 |---|---|
-| `--period` | Chart range (default: `7d`). Any `<number><unit>` or `max` |
+| `--period` | Chart range (default: `7d`). Any `<number><unit>`, `max`, or `auto` |
 | `--interval` | Data interval: auto (default), 1m, 5m, 15m, 30m, 60m, 90m, 1d |
 
 When `--interval auto` (the default), termseries picks a sensible interval based

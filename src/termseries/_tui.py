@@ -6,6 +6,7 @@ from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
 
+from termseries._period import xlim_now
 from termseries._render import _render_png
 from termseries._terminal import (
     _copy_to_clipboard,
@@ -31,6 +32,7 @@ def _run_interactive(
     reload_interval: int = 0,
     tz: str = "UTC",
     line_style: str = "linear",
+    anchor_now: bool = False,
 ) -> None:
     """Launch the Textual-based interactive chart viewer."""
     from PIL import Image as PILImage
@@ -212,6 +214,7 @@ def _run_interactive(
                     style_override=style_override,
                     tz=tz,
                     line_style=line_style,
+                    xlim=xlim_now(period, data) if anchor_now else None,
                 )
             except (ValueError, RuntimeError) as e:
                 self.notify(str(e), severity="warning")

@@ -10,7 +10,7 @@ import math
 from datetime import datetime, timezone
 from pathlib import Path
 
-from termseries._period import filter_period
+from termseries._period import filter_period, parse_period
 from termseries._types import TimeSeries
 
 # ---------------------------------------------------------------------------
@@ -114,7 +114,12 @@ def fetch_csv_series(paths: list[str], period: str) -> dict[str, TimeSeries]:
     """Load CSV files and return labelled time-series data.
 
     Conforms to the ``fetch_fn`` signature used by the TUI and CLI.
+
+    The period window is anchored to *now* so that all series share the
+    same time range (rather than each being truncated to its own last
+    timestamp).
     """
+    now = datetime.now(timezone.utc) if parse_period(period) else None
     seen: set[str] = set()
     result: dict[str, TimeSeries] = {}
 
@@ -125,7 +130,7 @@ def fetch_csv_series(paths: list[str], period: str) -> dict[str, TimeSeries]:
         seen.add(resolved)
 
         series = _read_csv(raw_path)
-        series = filter_period(series, period)
+        series = filter_period(series, period, reference=now)
         label = Path(raw_path).stem
         result[label] = series
 

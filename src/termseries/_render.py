@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import timezone
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -40,6 +40,7 @@ def _render_png(
     tz: str = "UTC",
     interval_label: str = "Daily",
     line_style: str = "linear",
+    xlim: tuple[datetime, datetime] | None = None,
 ) -> bytes:
     """Render a time-series chart and return PNG bytes.
 
@@ -155,6 +156,10 @@ def _render_png(
             ax.plot(xs, ys, label=name, marker=marker, markersize=ms, drawstyle=ds)
     if mode == "log":
         ax.set_yscale("log")
+
+    if xlim is not None:
+        left, right = xlim
+        ax.set_xlim(left.astimezone(target_tz), right.astimezone(target_tz))
 
     is_stock = value_unit == "USD"
     title_labels = {

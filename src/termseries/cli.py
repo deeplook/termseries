@@ -12,7 +12,12 @@ import typer
 
 from termseries._csv_source import fetch_csv_series
 from termseries._ha_source import _detect_unit, fetch_ha_series
-from termseries._period import TUI_PERIOD_CHOICES, parse_period, yahoo_auto_interval
+from termseries._period import (
+    TUI_PERIOD_CHOICES,
+    parse_period,
+    xlim_now,
+    yahoo_auto_interval,
+)
 from termseries._render import _output_png, _render_png
 from termseries._terminal import _parse_ratio
 from termseries._tui import _run_interactive
@@ -169,6 +174,7 @@ def csv_cmd(
             reload_interval=opts["reload"],
             tz=opts["tz"],
             line_style=opts["line_style"],
+            anchor_now=True,
         )
         raise typer.Exit()
 
@@ -184,6 +190,7 @@ def csv_cmd(
         style_override=opts["style"],
         tz=opts["tz"],
         line_style=opts["line_style"],
+        xlim=xlim_now(period, data),
     )
     labels = [Path(f).stem for f in files]
     _output_png(png, labels, r, period, copy=opts["copy"])
