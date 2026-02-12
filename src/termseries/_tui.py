@@ -6,7 +6,7 @@ from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
 
-from termseries._period import xlim_now
+from termseries._period import parse_period, xlim_now
 from termseries._render import _render_png
 from termseries._terminal import (
     _copy_to_clipboard,
@@ -43,6 +43,8 @@ def _run_interactive(
     from textual.widgets import Input, Select
     from textual.widgets._select import SelectOverlay
     from textual_image.widget import Image
+
+    _CUSTOM = "__custom__"
 
     class TermSeriesApp(App):  # type: ignore[misc]
         BINDINGS = [
@@ -90,22 +92,34 @@ def _run_interactive(
             width: 1fr;
             height: 1fr;
         }
+        #custom-period {
+            display: none;
+            width: 20;
+            height: 1;
+            border: none;
+            background: #6a9aca;
+            padding: 0 1;
+        }
         """
+
+        _last_period_value: str | None = None
 
         def compose(self) -> ComposeResult:
             has_columns = bool(initial_columns)
             with Horizontal(id="menu"):
-                periods = period_choices
+                periods = list(period_choices)
                 if period and period not in periods:
-                    periods = [*periods, period]
-                s1 = Select.from_values(periods, prompt="Period", allow_blank=True)
+                    periods.append(period)
+                options = [(p, p) for p in periods] + [("custom...", _CUSTOM)]
+                s1: Select[str] = Select(options, prompt="Period", allow_blank=True)
                 if period and period in periods:
                     s1.value = period
                 elif has_columns:
                     s1.value = periods[0]
-                max_len1 = max(len(v) for v in [*periods, "Period"])
+                max_len1 = max(len(v) for v in [*periods, "Period", "custom..."])
                 s1.styles.width = max_len1 + 6
                 yield s1
+                yield Input(placeholder="e.g. 14d, 2w", id="custom-period")
 
                 ratios = ["fit", "4:1", "3:1", "2:1"]
                 s2 = Select.from_values(ratios, prompt="Ratio", allow_blank=True)
@@ -232,8 +246,9 @@ def _run_interactive(
             self,
         ) -> tuple[str | None, str | None, str | None, str | None]:
             selects = self.query(Select)
+            raw_period = selects[0].value
             period: str | None = (
-                str(selects[0].value) if selects[0].value != Select.BLANK else None
+                str(raw_period) if raw_period not in (Select.BLANK, _CUSTOM) else None
             )
             ratio: str | None = (
                 str(selects[1].value) if selects[1].value != Select.BLANK else None
@@ -293,10 +308,69 @@ def _run_interactive(
             if self._reverting:
                 self._reverting = False
                 return
+            period_select: Select[str] = self.query(Select)[0]
+            if period_select.value == _CUSTOM:
+                custom_input = self.query_one("#custom-period", Input)
+                custom_input.value = ""
+                custom_input.display = True
+                custom_input.focus()
+                return
+            self._last_period_value = (
+                str(period_select.value)
+                if period_select.value != Select.BLANK
+                else None
+            )
+            self.callback(*self._get_selections())
+
+        def _hide_custom_input(self) -> None:
+            self.query_one("#custom-period", Input).display = False
+
+        def _accept_custom_period(self, value: str) -> None:
+            period_select: Select[str] = self.query(Select)[0]
+            self._hide_custom_input()
+            if not value:
+                self._reverting = True
+                period_select.value = (
+                    self._last_period_value if self._last_period_value else Select.BLANK
+                )
+                return
+            try:
+                parse_period(value)
+            except ValueError as e:
+                self.notify(str(e), severity="warning")
+                self._reverting = True
+                period_select.value = (
+                    self._last_period_value if self._last_period_value else Select.BLANK
+                )
+                return
+            # Add the custom value to the dropdown if not already present
+            current_options = list(period_select._options)
+            existing_values = {v for _, v in current_options}
+            if value not in existing_values:
+                new_options = [o for o in current_options if o[1] != _CUSTOM] + [
+                    (value, value),
+                    ("custom...", _CUSTOM),
+                ]
+                period_select.set_options(new_options)
+            self._reverting = True
+            period_select.value = value
+            self._last_period_value = value
+            self._reverting = False
             self.callback(*self._get_selections())
 
         def on_input_submitted(self, event: Input.Submitted) -> None:
-            self.callback(*self._get_selections())
+            if event.input.id == "custom-period":
+                self._accept_custom_period(event.value.strip())
+            else:
+                self.callback(*self._get_selections())
+
+        def on_key(self, event: events.Key) -> None:
+            if event.key == "escape":
+                custom_input = self.query_one("#custom-period", Input)
+                if custom_input.display:
+                    self._accept_custom_period("")
+                    event.prevent_default()
+                    event.stop()
 
         def _debounced_rerender(self) -> None:
             self._resize_timer = None

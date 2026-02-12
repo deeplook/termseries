@@ -33,7 +33,7 @@ or saves to file, with an optional interactive Textual TUI.
 - Force dark/light theme or inline/file output via environment variables
 
 ### Interactive TUI
-- Full-screen Textual TUI with dropdowns for period, aspect ratio, mode, and color cycle
+- Full-screen Textual TUI with dropdowns for period, aspect ratio, mode, and color cycle; "custom..." option in the Period menu for arbitrary values
 - Live ticker/entity/file input with immediate re-render on submit
 - Debounced chart re-render on terminal resize using cached data
 - Auto-reload at a configurable interval (`--reload N`) or toggled with Ctrl+R
