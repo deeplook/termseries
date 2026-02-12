@@ -6,16 +6,16 @@ from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
 
-from termseries._period import parse_period, xlim_now
-from termseries._render import _render_png
-from termseries._terminal import (
+from termseries.period import parse_period, xlim_now
+from termseries.render import _render_png
+from termseries.terminal import (
     _copy_to_clipboard,
     _is_docker,
     _is_ssh_session,
     _parse_ratio,
     _png_dimensions,
 )
-from termseries._types import TimeSeries
+from termseries.types import TimeSeries
 
 
 def _run_interactive(

@@ -15,9 +15,9 @@ from typing import Any
 
 import requests
 
-from termseries._csv_source import _parse_timestamp
-from termseries._period import filter_period, parse_period
-from termseries._types import TimeSeries
+from termseries.csv_source import _parse_timestamp
+from termseries.period import filter_period, parse_period
+from termseries.types import TimeSeries
 
 # ---------------------------------------------------------------------------
 # Low-level HTTP helper

@@ -10,18 +10,18 @@ from typing import Annotated
 
 import typer
 
-from termseries._csv_source import fetch_csv_series
-from termseries._ha_source import _detect_unit, fetch_ha_series
-from termseries._period import (
+from termseries.csv_source import fetch_csv_series
+from termseries.ha_source import _detect_unit, fetch_ha_series
+from termseries.period import (
     TUI_PERIOD_CHOICES,
     parse_period,
     xlim_now,
     yahoo_auto_interval,
 )
-from termseries._render import _output_png, _render_png
-from termseries._terminal import _parse_ratio
-from termseries._tui import _run_interactive
-from termseries._types import (
+from termseries.render import _output_png, _render_png
+from termseries.terminal import _parse_ratio
+from termseries.tui import _run_interactive
+from termseries.types import (
     ColorCycle,
     LineStyle,
     Mode,

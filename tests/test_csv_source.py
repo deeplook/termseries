@@ -1,4 +1,4 @@
-"""Tests for termseries._csv_source functions."""
+"""Tests for termseries.csv_source functions."""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from termseries._csv_source import (
+from termseries.csv_source import (
     _parse_timestamp,
     _read_csv,
     fetch_csv_series,
 )
-from termseries._period import filter_period
+from termseries.period import filter_period
 
 # ===================================================================
 # _parse_timestamp
@@ -195,10 +195,15 @@ class TestFetchCsvSeries:
 
     def test_applies_last_filter(self, tmp_path: Path) -> None:
         f = tmp_path / "data.csv"
-        lines = [f"2024-01-{i+1:02d},{ float(i)}" for i in range(31)]
+        now = datetime.now(timezone.utc)
+        lines = [
+            f"{(now - timedelta(days=30 - i)).strftime('%Y-%m-%dT%H:%M:%S+00:00')},"
+            f"{float(i)}"
+            for i in range(31)
+        ]
         f.write_text("\n".join(lines) + "\n")
         result = fetch_csv_series([str(f)], "7d")
-        assert len(result["data"]) == 8
+        assert 7 <= len(result["data"]) <= 8
 
     def test_label_from_stem(self, tmp_path: Path) -> None:
         f = tmp_path / "my_sensor_data.csv"

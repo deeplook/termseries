@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 
 import requests
 
-from termseries._period import filter_period, yahoo_auto_interval, yahoo_covering_range
-from termseries._types import TimeSeries
+from termseries.period import filter_period, yahoo_auto_interval, yahoo_covering_range
+from termseries.types import TimeSeries
 
 
 def _fetch_closes(

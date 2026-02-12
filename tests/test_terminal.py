@@ -1,4 +1,4 @@
-"""Tests for termseries._terminal helper functions."""
+"""Tests for termseries.terminal helper functions."""
 
 import base64
 import struct
@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from termseries._terminal import (
+from termseries.terminal import (
     _detect_dark_terminal,
     _is_docker,
     _is_iterm2,
@@ -144,7 +144,7 @@ class TestIsDocker:
         dockerenv = tmp_path / ".dockerenv"
         dockerenv.touch()
         monkeypatch.setattr(
-            "termseries._terminal.Path", lambda p: tmp_path / p.lstrip("/")
+            "termseries.terminal.Path", lambda p: tmp_path / p.lstrip("/")
         )
         assert _is_docker() is True
 
@@ -152,7 +152,7 @@ class TestIsDocker:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            "termseries._terminal.Path", lambda p: tmp_path / p.lstrip("/")
+            "termseries.terminal.Path", lambda p: tmp_path / p.lstrip("/")
         )
         assert _is_docker() is False
 

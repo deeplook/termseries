@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta, timezone
 
-from termseries._types import TimeSeries
+from termseries.types import TimeSeries
 
 _PERIOD_RE = re.compile(r"^(\d+)(mo|[mhdwy])$")
 

@@ -1,12 +1,12 @@
-"""Tests for termseries._render functions."""
+"""Tests for termseries.render functions."""
 
 from unittest.mock import patch
 
 import matplotlib.pyplot as plt
 import pytest
 
-from termseries._render import _output_png, _render_png
-from termseries._terminal import _png_dimensions
+from termseries.render import _output_png, _render_png
+from termseries.terminal import _png_dimensions
 from tests.conftest import make_series
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -98,7 +98,7 @@ class TestOutputPng:
         self, small_png: bytes, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("TERM", "xterm-kitty")
-        with patch("termseries._render._print_kitty_png") as mock:
+        with patch("termseries.render._print_kitty_png") as mock:
             _output_png(small_png, ["A"], (4, 1), "7d")
         mock.assert_called_once_with(small_png)
 
@@ -106,7 +106,7 @@ class TestOutputPng:
         self, small_png: bytes, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("TERM_PROGRAM", "iTerm.app")
-        with patch("termseries._render._print_iterm2_png") as mock:
+        with patch("termseries.render._print_iterm2_png") as mock:
             _output_png(small_png, ["A"], (4, 1), "7d")
         mock.assert_called_once_with(small_png)
 
@@ -114,7 +114,7 @@ class TestOutputPng:
         self, small_png: bytes, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("TERM_PROGRAM", "WezTerm")
-        with patch("termseries._render._print_sixel_png") as mock:
+        with patch("termseries.render._print_sixel_png") as mock:
             _output_png(small_png, ["A"], (4, 1), "7d")
         mock.assert_called_once_with(small_png)
 
@@ -122,7 +122,7 @@ class TestOutputPng:
         self, small_png: bytes, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("TERMSERIES_FORCE_INLINE", "1")
-        with patch("termseries._render._print_iterm2_png") as mock:
+        with patch("termseries.render._print_iterm2_png") as mock:
             _output_png(small_png, ["A"], (4, 1), "7d")
         mock.assert_called_once_with(small_png)
 
@@ -159,8 +159,8 @@ class TestOutputPng:
         monkeypatch.setenv("TERM", "xterm-kitty")
         monkeypatch.setenv("TERM_PROGRAM", "iTerm.app")
         with (
-            patch("termseries._render._print_kitty_png") as kitty_mock,
-            patch("termseries._render._print_iterm2_png") as iterm_mock,
+            patch("termseries.render._print_kitty_png") as kitty_mock,
+            patch("termseries.render._print_iterm2_png") as iterm_mock,
         ):
             _output_png(small_png, ["A"], (4, 1), "7d")
         kitty_mock.assert_called_once()
@@ -173,8 +173,8 @@ class TestOutputPng:
         monkeypatch.setenv("TERM_PROGRAM", "iTerm.app")
         monkeypatch.setenv("TERM", "foot")
         with (
-            patch("termseries._render._print_iterm2_png") as iterm_mock,
-            patch("termseries._render._print_sixel_png") as sixel_mock,
+            patch("termseries.render._print_iterm2_png") as iterm_mock,
+            patch("termseries.render._print_sixel_png") as sixel_mock,
         ):
             _output_png(small_png, ["A"], (4, 1), "7d")
         iterm_mock.assert_called_once()
@@ -223,7 +223,7 @@ class TestStyleFiles:
         override.write_text("figure.dpi: 100\n")
         series = {"A": make_series()}
         png = _render_png(series, (4, 1), "7d", style_override=override)
-        from termseries._terminal import _png_dimensions
+        from termseries.terminal import _png_dimensions
 
         w, _h = _png_dimensions(png)
         assert w == 1200  # 12in * 100dpi

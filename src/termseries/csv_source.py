@@ -1,7 +1,4 @@
-"""CSV data-loading for termseries.
-
-Named ``_csv_source`` to avoid shadowing the stdlib ``csv`` module.
-"""
+"""CSV data-loading for termseries."""
 
 from __future__ import annotations
 
@@ -10,8 +7,8 @@ import math
 from datetime import datetime, timezone
 from pathlib import Path
 
-from termseries._period import filter_period, parse_period
-from termseries._types import TimeSeries
+from termseries.period import filter_period, parse_period
+from termseries.types import TimeSeries
 
 # ---------------------------------------------------------------------------
 # Timestamp parsing

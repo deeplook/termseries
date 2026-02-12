@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import matplotlib
 import matplotlib.pyplot as plt
 
-from termseries._terminal import (
+from termseries.terminal import (
     _copy_to_clipboard,
     _detect_dark_terminal,
     _is_docker,
@@ -25,7 +25,7 @@ from termseries._terminal import (
     _print_kitty_png,
     _print_sixel_png,
 )
-from termseries._types import TimeSeries
+from termseries.types import TimeSeries
 
 
 def _render_png(

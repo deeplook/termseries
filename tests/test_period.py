@@ -1,4 +1,4 @@
-"""Tests for termseries._period functions."""
+"""Tests for termseries.period functions."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from termseries._period import (
+from termseries.period import (
     filter_period,
     parse_period,
     yahoo_auto_interval,

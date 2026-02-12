@@ -291,13 +291,13 @@ termseries/
 ├── src/termseries/
 │   ├── __init__.py
 │   ├── __main__.py
-│   ├── _csv_source.py
-│   ├── _ha_source.py
-│   ├── _period.py
-│   ├── _render.py
-│   ├── _terminal.py
-│   ├── _tui.py
-│   ├── _types.py
+│   ├── csv_source.py
+│   ├── ha_source.py
+│   ├── period.py
+│   ├── render.py
+│   ├── terminal.py
+│   ├── tui.py
+│   ├── types.py
 │   ├── cli.py
 │   ├── yahoo.py
 │   ├── dark.mplstyle
