@@ -145,6 +145,8 @@ def _run_interactive(
                     "drawdown",
                     "returns",
                     "relative",
+                    "cumulative",
+                    "delta",
                 ]
                 s_mode = Select.from_values(modes, prompt="Mode", allow_blank=True)
                 s_mode.value = mode if mode and mode in modes else "absolute"

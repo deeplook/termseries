@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import matplotlib
@@ -26,6 +28,68 @@ from termseries.terminal import (
     _print_sixel_png,
 )
 from termseries.types import TimeSeries
+
+_Transform = Callable[[Sequence[Any], Sequence[float]], tuple[list[Any], list[float]]]
+
+
+def _transform_indexed(
+    xs: Sequence[Any], ys: Sequence[float]
+) -> tuple[list[Any], list[float]]:
+    if not ys:
+        return list(xs), list(ys)
+    base = ys[0]
+    return list(xs), [100.0 * y / base for y in ys]
+
+
+def _transform_drawdown(
+    xs: Sequence[Any], ys: Sequence[float]
+) -> tuple[list[Any], list[float]]:
+    if not ys:
+        return list(xs), list(ys)
+    peak = ys[0]
+    dd: list[float] = []
+    for y in ys:
+        peak = max(peak, y)
+        dd.append((y / peak - 1.0) * 100.0)
+    return list(xs), dd
+
+
+def _transform_returns(
+    xs: Sequence[Any], ys: Sequence[float]
+) -> tuple[list[Any], list[float]]:
+    if len(ys) < 2:
+        return list(xs), list(ys)
+    return list(xs[1:]), [(ys[i] / ys[i - 1] - 1.0) * 100.0 for i in range(1, len(ys))]
+
+
+def _transform_cumulative(
+    xs: Sequence[Any], ys: Sequence[float]
+) -> tuple[list[Any], list[float]]:
+    if not ys:
+        return list(xs), list(ys)
+    cumulative: list[float] = []
+    total = 0.0
+    for y in ys:
+        total += y
+        cumulative.append(total)
+    return list(xs), cumulative
+
+
+def _transform_delta(
+    xs: Sequence[Any], ys: Sequence[float]
+) -> tuple[list[Any], list[float]]:
+    if len(ys) < 2:
+        return list(xs), list(ys)
+    return list(xs[1:]), [ys[i] - ys[i - 1] for i in range(1, len(ys))]
+
+
+_TRANSFORMS: dict[str, _Transform] = {
+    "indexed": _transform_indexed,
+    "drawdown": _transform_drawdown,
+    "returns": _transform_returns,
+    "cumulative": _transform_cumulative,
+    "delta": _transform_delta,
+}
 
 
 def _render_png(
@@ -60,7 +124,8 @@ def _render_png(
     color_cycle : str | None
         Matplotlib colormap name for the line color cycle.
     mode : str
-        Chart mode (absolute, indexed, log, drawdown, returns, relative).
+        Chart mode (absolute, indexed, log, drawdown, returns, relative,
+        cumulative, delta).
     value_unit : str
         Unit label for the y-axis (e.g. "USD", "C"). Defaults to "USD".
     style_override : Path | None
@@ -137,19 +202,9 @@ def _render_png(
         for name, points in series.items():
             xs = [dt.astimezone(target_tz) for dt, _ in points]
             ys = [close for _, close in points]
-            if mode == "indexed" and ys:
-                base = ys[0]
-                ys = [100.0 * y / base for y in ys]
-            elif mode == "drawdown" and ys:
-                peak = ys[0]
-                dd = []
-                for y in ys:
-                    peak = max(peak, y)
-                    dd.append((y / peak - 1.0) * 100.0)
-                ys = dd
-            elif mode == "returns" and len(ys) >= 2:
-                xs = xs[1:]
-                ys = [(ys[i] / ys[i - 1] - 1.0) * 100.0 for i in range(1, len(ys))]
+            transform = _TRANSFORMS.get(mode)
+            if transform is not None:
+                xs, ys = transform(xs, ys)
             n = len(xs)
             marker = "o" if n <= 100 else None
             ms = max(2, 8 - n // 15)
@@ -169,6 +224,8 @@ def _render_png(
         "drawdown": "Drawdown",
         "returns": f"{interval_label} Returns",
         "relative": f"{names[0]}/{names[1]}" if mode == "relative" else "",
+        "cumulative": "Cumulative",
+        "delta": f"{interval_label} Delta",
     }
     prefix = title_labels.get(mode, "")
     names_str = ", ".join(names)
@@ -185,6 +242,8 @@ def _render_png(
         "drawdown": "% from peak",
         "returns": f"{interval_label} change (%)",
         "relative": f"{names[0]}/{names[1]} ratio" if mode == "relative" else "",
+        "cumulative": f"Cumulative ({value_unit})",
+        "delta": f"{interval_label} change ({value_unit})",
     }
     ax.set_ylabel(ylabel.get(mode, value_unit))
     ax.legend(ncols=min(4, max(1, len(names))))

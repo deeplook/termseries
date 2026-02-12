@@ -25,7 +25,15 @@ from termseries.period import (
     filter_period,
     parse_period,
 )
-from termseries.render import _output_png, _render_png
+from termseries.render import (
+    _output_png,
+    _render_png,
+    _transform_cumulative,
+    _transform_delta,
+    _transform_drawdown,
+    _transform_indexed,
+    _transform_returns,
+)
 from termseries.terminal import (
     _copy_to_clipboard,
     _detect_dark_terminal,
@@ -69,6 +77,11 @@ __all__ = [
     "_parse_timestamp",
     "_render_png",
     "_output_png",
+    "_transform_indexed",
+    "_transform_drawdown",
+    "_transform_returns",
+    "_transform_cumulative",
+    "_transform_delta",
     "_run_interactive",
     "_is_kitty",
     "_is_iterm2",

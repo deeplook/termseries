@@ -5,7 +5,15 @@ from unittest.mock import patch
 import matplotlib.pyplot as plt
 import pytest
 
-from termseries.render import _output_png, _render_png
+from termseries.render import (
+    _output_png,
+    _render_png,
+    _transform_cumulative,
+    _transform_delta,
+    _transform_drawdown,
+    _transform_indexed,
+    _transform_returns,
+)
 from termseries.terminal import _png_dimensions
 from tests.conftest import make_series
 
@@ -53,6 +61,16 @@ class TestRenderPng:
     def test_mode_relative(self) -> None:
         series = {"A": make_series(base=100), "B": make_series(base=50)}
         png = _render_png(series, (4, 1), "7d", mode="relative")
+        assert png[:8] == PNG_SIGNATURE
+
+    def test_mode_cumulative(self) -> None:
+        series = {"A": make_series()}
+        png = _render_png(series, (4, 1), "7d", mode="cumulative")
+        assert png[:8] == PNG_SIGNATURE
+
+    def test_mode_delta(self) -> None:
+        series = {"A": make_series()}
+        png = _render_png(series, (4, 1), "7d", mode="delta")
         assert png[:8] == PNG_SIGNATURE
 
     def test_relative_wrong_count(self) -> None:
@@ -227,3 +245,65 @@ class TestStyleFiles:
 
         w, _h = _png_dimensions(png)
         assert w == 1200  # 12in * 100dpi
+
+
+# ===================================================================
+# Transform functions
+# ===================================================================
+
+
+class TestTransforms:
+    def test_indexed(self) -> None:
+        xs = [1, 2, 3]
+        _, ys = _transform_indexed(xs, [50, 75, 100])
+        assert ys == [100.0, 150.0, 200.0]
+
+    def test_indexed_empty(self) -> None:
+        xs, ys = _transform_indexed([], [])
+        assert xs == [] and ys == []
+
+    def test_drawdown(self) -> None:
+        xs = [1, 2, 3]
+        _, ys = _transform_drawdown(xs, [100, 80, 90])
+        assert ys == pytest.approx([0.0, -20.0, -10.0])
+
+    def test_drawdown_empty(self) -> None:
+        xs, ys = _transform_drawdown([], [])
+        assert xs == [] and ys == []
+
+    def test_returns(self) -> None:
+        xs = [1, 2, 3]
+        rx, ry = _transform_returns(xs, [100, 110, 99])
+        assert rx == [2, 3]
+        assert ry == pytest.approx([10.0, -10.0])
+
+    def test_returns_empty(self) -> None:
+        xs, ys = _transform_returns([], [])
+        assert xs == [] and ys == []
+
+    def test_returns_single(self) -> None:
+        xs, ys = _transform_returns([1], [100])
+        assert xs == [1] and ys == [100]
+
+    def test_cumulative(self) -> None:
+        xs = [1, 2, 3]
+        _, ys = _transform_cumulative(xs, [10, 20, 30])
+        assert ys == [10, 30, 60]
+
+    def test_cumulative_empty(self) -> None:
+        xs, ys = _transform_cumulative([], [])
+        assert xs == [] and ys == []
+
+    def test_delta(self) -> None:
+        xs = [1, 2, 3]
+        dx, dy = _transform_delta(xs, [100, 110, 105])
+        assert dx == [2, 3]
+        assert dy == [10, -5]
+
+    def test_delta_empty(self) -> None:
+        xs, ys = _transform_delta([], [])
+        assert xs == [] and ys == []
+
+    def test_delta_single(self) -> None:
+        xs, ys = _transform_delta([1], [100])
+        assert xs == [1] and ys == [100]

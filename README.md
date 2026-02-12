@@ -24,6 +24,7 @@ or saves to file, with an optional interactive Textual TUI.
 ### Chart Modes
 - Absolute values (default), indexed to 100%, logarithmic scale
 - Drawdown from running peak, interval-aware returns (label adapts to interval), and relative price ratio
+- Cumulative running total and point-to-point delta
 - Unified free-form period syntax across all subcommands (`<number><unit>`, e.g. `14d`, `2w`, `3mo`, `max`, or `auto`)
 
 ### Terminal Rendering
@@ -53,7 +54,7 @@ or saves to file, with an optional interactive Textual TUI.
 ### Developer Experience
 - Fully typed (`py.typed`, mypy-checked)
 - Pre-commit hooks for ruff, ruff-format, and mypy
-- 170+ unit tests covering all modules
+- 210+ unit tests covering all modules
 - Docker support with Compose for containerized usage
 
 ## Installation
@@ -91,6 +92,12 @@ termseries yahoo TSLA --interval 1m --period 1d
 
 # Relative price ratio (exactly 2 tickers)
 termseries --mode relative yahoo --period 1y AAPL MSFT
+
+# Cumulative sum
+termseries --mode cumulative csv sensor.csv --period 30d
+
+# Point-to-point delta
+termseries --mode delta yahoo TSLA --period 1mo
 
 # Step-style line (staircase effect)
 termseries --line-style step-post yahoo TSLA --period 5d
@@ -165,7 +172,7 @@ from the entity's attributes.
 | Option | Description |
 |---|---|
 | `--ratio W:H` | Figure aspect ratio (default: 4:1) |
-| `--mode` | Chart mode: absolute, indexed, log, drawdown, returns, relative |
+| `--mode` | Chart mode: absolute, indexed, log, drawdown, returns, relative, cumulative, delta |
 | `--tz TZ` | Timezone for x-axis: `UTC` (default), `local`, or IANA name (e.g. `Europe/Berlin`) |
 | `--colors` | Matplotlib color cycle: tab10, Set1, Set2, Dark2, Accent, Pastel1, tab20 |
 | `--line-style` | Line connection style: linear (default), step-pre, step-post, step-mid |

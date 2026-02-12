@@ -15,6 +15,8 @@ class Mode(str, Enum):
     drawdown = "drawdown"
     returns = "returns"
     relative = "relative"
+    cumulative = "cumulative"
+    delta = "delta"
 
 
 class ColorCycle(str, Enum):
