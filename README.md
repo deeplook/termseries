@@ -26,6 +26,7 @@ or saves to file, with an optional interactive Textual TUI.
 - Drawdown from running peak, interval-aware returns (label adapts to interval), and relative price ratio
 - Cumulative running total and point-to-point delta
 - Unified free-form period syntax across all subcommands (`<number><unit>`, e.g. `14d`, `2w`, `3mo`, `max`, or `auto`)
+- Calendar-anchored to-date periods: `ytd`, `mtd`, `wtd`, `dtd`, `htd`
 
 ### Terminal Rendering
 - Auto-detect Kitty, iTerm2, and Sixel-capable terminals for inline PNG display
@@ -140,6 +141,11 @@ termseries csv temp.csv humidity.csv --period 7d --unit '°C'
 termseries yahoo TSLA --period 14d
 termseries yahoo TSLA --period 2w
 
+# Calendar-anchored to-date periods
+termseries yahoo TSLA --period ytd
+termseries yahoo TSLA --period mtd
+termseries ha sensor.power_consumption --period dtd
+
 # Interactive TUI with CSV data
 termseries -i csv sensor.csv
 ```
@@ -192,6 +198,11 @@ All subcommands accept `--period` with free-form `<number><unit>` values:
 | `w`  | `2w`    | weeks   |
 | `mo` | `3mo`   | months (≈30 days) |
 | `y`  | `1y`    | years (≈365 days) |
+| `ytd`| `ytd`   | year-to-date (from Jan 1st) |
+| `mtd`| `mtd`   | month-to-date (from 1st of month) |
+| `wtd`| `wtd`   | week-to-date (from Monday) |
+| `dtd`| `dtd`   | day-to-date (from midnight UTC) |
+| `htd`| `htd`   | hour-to-date (from start of hour) |
 | `max`|         | all data, x-axis extends to now |
 | `auto`|        | all data, x-axis fits to data |
 

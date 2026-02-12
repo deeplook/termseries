@@ -7,11 +7,67 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from termseries.period import (
+    _to_date_cutoff,
     filter_period,
     parse_period,
     yahoo_auto_interval,
     yahoo_covering_range,
 )
+
+# ===================================================================
+# _to_date_cutoff
+# ===================================================================
+
+
+class TestToDateCutoff:
+    """Test the _to_date_cutoff helper with a frozen 'now'."""
+
+    # Wednesday 2024-07-17 14:35:22 UTC
+    NOW = datetime(2024, 7, 17, 14, 35, 22, tzinfo=timezone.utc)
+
+    def test_non_to_date_returns_none(self) -> None:
+        assert _to_date_cutoff("7d", self.NOW) is None
+        assert _to_date_cutoff("max", self.NOW) is None
+        assert _to_date_cutoff("auto", self.NOW) is None
+
+    def test_ytd(self) -> None:
+        assert _to_date_cutoff("ytd", self.NOW) == datetime(
+            2024, 1, 1, tzinfo=timezone.utc
+        )
+
+    def test_mtd(self) -> None:
+        assert _to_date_cutoff("mtd", self.NOW) == datetime(
+            2024, 7, 1, tzinfo=timezone.utc
+        )
+
+    def test_wtd(self) -> None:
+        # 2024-07-17 is a Wednesday; Monday is 2024-07-15
+        assert _to_date_cutoff("wtd", self.NOW) == datetime(
+            2024, 7, 15, tzinfo=timezone.utc
+        )
+
+    def test_wtd_on_monday(self) -> None:
+        monday = datetime(2024, 7, 15, 10, 0, 0, tzinfo=timezone.utc)
+        assert _to_date_cutoff("wtd", monday) == datetime(
+            2024, 7, 15, tzinfo=timezone.utc
+        )
+
+    def test_dtd(self) -> None:
+        assert _to_date_cutoff("dtd", self.NOW) == datetime(
+            2024, 7, 17, tzinfo=timezone.utc
+        )
+
+    def test_htd(self) -> None:
+        assert _to_date_cutoff("htd", self.NOW) == datetime(
+            2024, 7, 17, 14, 0, 0, tzinfo=timezone.utc
+        )
+
+    def test_defaults_to_utc_now(self) -> None:
+        """Without an explicit now, should return a cutoff before utcnow."""
+        cutoff = _to_date_cutoff("ytd")
+        assert cutoff is not None
+        assert cutoff <= datetime.now(timezone.utc)
+
 
 # ===================================================================
 # parse_period
@@ -63,9 +119,11 @@ class TestParsePeriod:
         with pytest.raises(ValueError, match="Invalid period"):
             parse_period("5x")
 
-    def test_ytd_raises(self) -> None:
-        with pytest.raises(ValueError, match="Invalid period"):
-            parse_period("ytd")
+    @pytest.mark.parametrize("period", ["ytd", "mtd", "wtd", "dtd", "htd"])  # type: ignore[misc]
+    def test_to_date_returns_positive_timedelta(self, period: str) -> None:
+        result = parse_period(period)
+        assert isinstance(result, timedelta)
+        assert result > timedelta(0)
 
 
 # ===================================================================
@@ -120,6 +178,22 @@ class TestYahooCoveringRange:
     def test_huge_period_covers_to_max(self) -> None:
         assert yahoo_covering_range("20y") == "max"
 
+    @pytest.mark.parametrize("period", ["ytd", "mtd", "wtd", "dtd", "htd"])  # type: ignore[misc]
+    def test_to_date_returns_valid_range(self, period: str) -> None:
+        result = yahoo_covering_range(period)
+        assert result in {
+            "1d",
+            "5d",
+            "1mo",
+            "3mo",
+            "6mo",
+            "1y",
+            "2y",
+            "5y",
+            "10y",
+            "max",
+        }
+
 
 # ===================================================================
 # yahoo_auto_interval
@@ -147,6 +221,11 @@ class TestYahooAutoInterval:
 
     def test_max_gets_1d(self) -> None:
         assert yahoo_auto_interval("max") == "1d"
+
+    @pytest.mark.parametrize("period", ["ytd", "mtd", "wtd", "dtd", "htd"])  # type: ignore[misc]
+    def test_to_date_returns_valid_interval(self, period: str) -> None:
+        result = yahoo_auto_interval(period)
+        assert result in {"5m", "15m", "1d"}
 
 
 # ===================================================================
@@ -190,3 +269,34 @@ class TestFilterPeriod:
 
     def test_empty_series(self) -> None:
         assert filter_period([], "7d") == []
+
+    def test_ytd_uses_absolute_cutoff(self) -> None:
+        """YTD should filter based on Jan 1st of current year, not relative."""
+        now = datetime.now(timezone.utc)
+        jan1 = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        # Create series spanning from last year to now
+        series = [
+            (jan1 - timedelta(days=10), 1.0),  # last year — excluded
+            (jan1 - timedelta(days=1), 2.0),  # last year — excluded
+            (jan1, 3.0),  # included
+            (jan1 + timedelta(days=30), 4.0),  # included
+        ]
+        filtered = filter_period(series, "ytd")
+        assert len(filtered) == 2
+        assert filtered[0][2:] == ()  # just to confirm tuple structure
+        assert filtered[0][0] == jan1
+
+    def test_dtd_uses_absolute_cutoff(self) -> None:
+        """DTD should filter based on start of today."""
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        series = [
+            (today_start - timedelta(hours=2), 1.0),  # yesterday — excluded
+            (today_start, 2.0),  # included
+            (today_start + timedelta(hours=6), 3.0),  # included
+        ]
+        filtered = filter_period(series, "dtd")
+        assert len(filtered) == 2
+
+    def test_to_date_empty_series(self) -> None:
+        assert filter_period([], "ytd") == []

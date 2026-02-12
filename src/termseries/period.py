@@ -18,6 +18,29 @@ _UNIT_TO_TIMEDELTA: dict[str, timedelta] = {
     "y": timedelta(days=365),
 }
 
+_TO_DATE_PERIODS = frozenset({"ytd", "mtd", "wtd", "dtd", "htd"})
+
+
+def _to_date_cutoff(period: str, now: datetime | None = None) -> datetime | None:
+    """Return the absolute cutoff for a to-date period, or ``None``."""
+    if period not in _TO_DATE_PERIODS:
+        return None
+    if now is None:
+        now = datetime.now(timezone.utc)
+    if period == "ytd":
+        return now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    if period == "mtd":
+        return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if period == "wtd":
+        days_since_monday = now.weekday()  # Monday=0
+        monday = now - timedelta(days=days_since_monday)
+        return monday.replace(hour=0, minute=0, second=0, microsecond=0)
+    if period == "dtd":
+        return now.replace(hour=0, minute=0, second=0, microsecond=0)
+    # htd
+    return now.replace(minute=0, second=0, microsecond=0)
+
+
 # Yahoo-native ranges in ascending order of duration.
 _YAHOO_NATIVE_RANGES: list[tuple[str, timedelta]] = [
     ("1d", timedelta(days=1)),
@@ -49,6 +72,11 @@ TUI_PERIOD_CHOICES: list[str] = [
     "2y",
     "5y",
     "10y",
+    "htd",
+    "dtd",
+    "wtd",
+    "mtd",
+    "ytd",
     "max",
     "auto",
 ]
@@ -62,11 +90,17 @@ def parse_period(value: str) -> timedelta | None:
     """
     if value in ("max", "auto"):
         return None
+    if value in _TO_DATE_PERIODS:
+        now = datetime.now(timezone.utc)
+        cutoff = _to_date_cutoff(value, now)
+        assert cutoff is not None  # guaranteed by _TO_DATE_PERIODS check
+        return now - cutoff
     m = _PERIOD_RE.match(value)
     if not m:
         raise ValueError(
             f"Invalid period {value!r}. "
-            "Use <number><unit> (e.g. 14d, 2w, 3mo), 'max', or 'auto'."
+            "Use <number><unit> (e.g. 14d, 2w, 3mo), "
+            "a to-date period (ytd, mtd, wtd, dtd, htd), 'max', or 'auto'."
         )
     n = int(m.group(1))
     unit = m.group(2)
@@ -85,6 +119,9 @@ def filter_period(
     Pass an explicit value (e.g. ``datetime.now()``) to anchor the
     window to a fixed point so that multiple series share the same range.
     """
+    cutoff = _to_date_cutoff(period)
+    if cutoff is not None:
+        return [(dt, v) for dt, v in series if dt >= cutoff]
     delta = parse_period(period)
     if delta is None:
         return series
@@ -106,6 +143,9 @@ def xlim_now(
     if period == "auto":
         return None
     now = datetime.now(timezone.utc)
+    cutoff = _to_date_cutoff(period, now)
+    if cutoff is not None:
+        return (cutoff, now)
     delta = parse_period(period)
     if delta is not None:
         return (now - delta, now)

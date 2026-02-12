@@ -22,6 +22,7 @@ from termseries.ha_source import (
 )
 from termseries.period import (
     TUI_PERIOD_CHOICES,
+    _to_date_cutoff,
     filter_period,
     parse_period,
 )
@@ -60,6 +61,7 @@ __all__ = [
     "TUI_PERIOD_CHOICES",
     "parse_period",
     "filter_period",
+    "_to_date_cutoff",
     "app",
     "main",
     "yahoo",
