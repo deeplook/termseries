@@ -1,5 +1,6 @@
 """Tests for termseries.render functions."""
 
+import math
 from unittest.mock import patch
 
 import matplotlib.pyplot as plt
@@ -307,3 +308,35 @@ class TestTransforms:
     def test_delta_single(self) -> None:
         xs, ys = _transform_delta([1], [100])
         assert xs == [1] and ys == [100]
+
+    # --- NaN propagation tests ---
+
+    def test_indexed_nan_propagates(self) -> None:
+        _, ys = _transform_indexed([1, 2, 3], [50, float("nan"), 100])
+        assert ys[0] == 100.0
+        assert math.isnan(ys[1])
+        assert ys[2] == 200.0
+
+    def test_returns_nan_propagates(self) -> None:
+        _, ys = _transform_returns([1, 2, 3], [100, float("nan"), 110])
+        assert math.isnan(ys[0])  # nan / 100
+        assert math.isnan(ys[1])  # 110 / nan
+
+    def test_delta_nan_propagates(self) -> None:
+        _, ys = _transform_delta([1, 2, 3], [100, float("nan"), 110])
+        assert math.isnan(ys[0])  # nan - 100
+        assert math.isnan(ys[1])  # 110 - nan
+
+    def test_drawdown_nan_skipped(self) -> None:
+        _, ys = _transform_drawdown([1, 2, 3, 4], [100, float("nan"), 80, 90])
+        assert ys[0] == pytest.approx(0.0)
+        assert math.isnan(ys[1])
+        assert ys[2] == pytest.approx(-20.0)  # peak stays at 100
+        assert ys[3] == pytest.approx(-10.0)
+
+    def test_cumulative_nan_skipped(self) -> None:
+        _, ys = _transform_cumulative([1, 2, 3, 4], [10, float("nan"), 20, 30])
+        assert ys[0] == 10
+        assert math.isnan(ys[1])
+        assert ys[2] == 30  # 10 + 20, NaN skipped
+        assert ys[3] == 60  # 10 + 20 + 30

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import sys
 from collections.abc import Callable, Sequence
@@ -46,11 +47,14 @@ def _transform_drawdown(
 ) -> tuple[list[Any], list[float]]:
     if not ys:
         return list(xs), list(ys)
-    peak = ys[0]
+    peak: float | None = None
     dd: list[float] = []
     for y in ys:
-        peak = max(peak, y)
-        dd.append((y / peak - 1.0) * 100.0)
+        if math.isnan(y):
+            dd.append(float("nan"))
+        else:
+            peak = y if peak is None else max(peak, y)
+            dd.append((y / peak - 1.0) * 100.0)
     return list(xs), dd
 
 
@@ -70,8 +74,11 @@ def _transform_cumulative(
     cumulative: list[float] = []
     total = 0.0
     for y in ys:
-        total += y
-        cumulative.append(total)
+        if math.isnan(y):
+            cumulative.append(float("nan"))
+        else:
+            total += y
+            cumulative.append(total)
     return list(xs), cumulative
 
 

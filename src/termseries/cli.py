@@ -11,6 +11,7 @@ from typing import Annotated
 import typer
 
 from termseries.csv_source import fetch_csv_series
+from termseries.gaps import insert_gaps
 from termseries.ha_source import _detect_unit, fetch_ha_series
 from termseries.period import (
     TUI_PERIOD_CHOICES,
@@ -25,11 +26,20 @@ from termseries.types import (
     ColorCycle,
     LineStyle,
     Mode,
+    TimeSeries,
     YahooInterval,
 )
 from termseries.yahoo import fetch_yahoo_series
 
 app = typer.Typer(help="Render time-series data as terminal plots.")
+
+
+def _apply_gaps(data: dict[str, TimeSeries], gaps: str) -> dict[str, TimeSeries]:
+    """Apply gap processing to all series based on the --gaps value."""
+    if gaps == "connect":
+        return data
+    max_gap = None if gaps == "show" else parse_period(gaps)
+    return {name: insert_gaps(series, max_gap=max_gap) for name, series in data.items()}
 
 
 def _validate_period(value: str) -> str:
@@ -38,6 +48,21 @@ def _validate_period(value: str) -> str:
         parse_period(value)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
+    return value
+
+
+def _validate_gaps(value: str) -> str:
+    """Typer callback that validates the --gaps option."""
+    if value in ("connect", "show"):
+        return value
+    try:
+        td = parse_period(value)
+        if td is None:
+            msg = "Invalid gaps value. Use 'connect', 'show', or a duration."
+            raise typer.BadParameter(msg)
+    except ValueError as exc:
+        msg = f"Invalid gaps value {value!r}. " "Use 'connect', 'show', or a duration."
+        raise typer.BadParameter(msg) from exc
     return value
 
 
@@ -68,6 +93,13 @@ def main(
     line_style: Annotated[
         LineStyle, typer.Option(help="Line connection style")
     ] = LineStyle.linear,
+    gaps: Annotated[
+        str,
+        typer.Option(
+            help='Gap handling: "connect", "show", or duration (e.g. 1h, 30m)',
+            callback=_validate_gaps,
+        ),
+    ] = "connect",
 ) -> None:
     ctx.ensure_object(dict)
     effective_ratio = ("fit" if interactive else "4:1") if ratio is None else ratio
@@ -84,6 +116,7 @@ def main(
     ctx.obj["reload"] = reload
     ctx.obj["tz"] = tz
     ctx.obj["line_style"] = line_style.value
+    ctx.obj["gaps"] = gaps
 
 
 @app.command()  # type: ignore[misc]
@@ -128,6 +161,7 @@ def yahoo(
         raise typer.Exit()
 
     data = fetch_yahoo_series(tickers, period, interval=interval.value)
+    data = _apply_gaps(data, opts["gaps"])
     r = opts["ratio"] or (4, 1)
     png = _render_png(
         data,
@@ -179,6 +213,7 @@ def csv_cmd(
         raise typer.Exit()
 
     data = fetch_csv_series(files, period)
+    data = _apply_gaps(data, opts["gaps"])
     r = opts["ratio"] or (4, 1)
     png = _render_png(
         data,
@@ -238,6 +273,7 @@ def ha(
         raise typer.Exit()
 
     data = fetch_ha_series(entities, period)
+    data = _apply_gaps(data, opts["gaps"])
     r = opts["ratio"] or (4, 1)
     png = _render_png(
         data,

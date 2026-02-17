@@ -55,7 +55,7 @@ or saves to file, with an optional interactive Textual TUI.
 ### Developer Experience
 - Fully typed (`py.typed`, mypy-checked)
 - Pre-commit hooks for ruff, ruff-format, and mypy
-- 210+ unit tests covering all modules
+- 230+ unit tests covering all modules
 - Docker support with Compose for containerized usage
 
 ## Installation
@@ -99,6 +99,12 @@ termseries --mode cumulative csv sensor.csv --period 30d
 
 # Point-to-point delta
 termseries --mode delta yahoo TSLA --period 1mo
+
+# Show gaps in data (break lines where data is missing)
+termseries --gaps show ha sensor.living_room_temperature --period 7d
+
+# Connect gaps under 1 hour, break larger ones
+termseries --gaps 1h csv sensor.csv --period 30d
 
 # Step-style line (staircase effect)
 termseries --line-style step-post yahoo TSLA --period 5d
@@ -181,6 +187,7 @@ from the entity's attributes.
 | `--mode` | Chart mode: absolute, indexed, log, drawdown, returns, relative, cumulative, delta |
 | `--tz TZ` | Timezone for x-axis: `UTC` (default), `local`, or IANA name (e.g. `Europe/Berlin`) |
 | `--colors` | Matplotlib color cycle: tab10, Set1, Set2, Dark2, Accent, Pastel1, tab20 |
+| `--gaps` | Gap handling: `connect` (default), `show` (break lines at gaps), or duration threshold (e.g. `1h`) |
 | `--line-style` | Line connection style: linear (default), step-pre, step-post, step-mid |
 | `--style PATH` | Extra `.mplstyle` file layered on top of the base theme (see [Custom Styles](#custom-styles)) |
 | `-c` / `--copy` | Copy plot to system clipboard |
@@ -310,6 +317,7 @@ termseries/
 │   ├── __init__.py
 │   ├── __main__.py
 │   ├── csv_source.py
+│   ├── gaps.py
 │   ├── ha_source.py
 │   ├── period.py
 │   ├── render.py
@@ -325,6 +333,7 @@ termseries/
 │   ├── conftest.py
 │   ├── test_csv_source.py
 │   ├── test_docker.py
+│   ├── test_gaps.py
 │   ├── test_ha_source.py
 │   ├── test_period.py
 │   ├── test_render.py

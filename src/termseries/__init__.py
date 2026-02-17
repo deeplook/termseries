@@ -14,6 +14,7 @@ from termseries.csv_source import (
     _read_csv,
     fetch_csv_series,
 )
+from termseries.gaps import insert_gaps
 from termseries.ha_source import (
     _detect_unit,
     _fetch_ha_entity,
@@ -97,4 +98,5 @@ __all__ = [
     "_png_dimensions",
     "_copy_to_clipboard",
     "_parse_ratio",
+    "insert_gaps",
 ]
