@@ -54,7 +54,9 @@ def _run_interactive(
 [bold]termseries — interactive mode[/bold]
 
 [bold cyan]Controls[/bold cyan]
+  [bold]Tab[/bold]             Move focus between controls
   [bold]←  →[/bold]           Move focus between controls
+  [bold]↑  ↓[/bold]           Navigate dropdown options
   [bold]Enter[/bold]           Apply ticker / custom period
 
 [bold cyan]Chart[/bold cyan]
