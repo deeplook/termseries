@@ -40,6 +40,7 @@ def _run_interactive(
     from PIL import Image as PILImage
     from textual import events
     from textual.app import App, ComposeResult
+    from textual.binding import Binding
     from textual.containers import Horizontal
     from textual.screen import ModalScreen
     from textual.timer import Timer
@@ -95,6 +96,8 @@ def _run_interactive(
             ("escape", "quit", "Quit"),
             ("ctrl+d", "quit", "Quit"),
             ("ctrl+c", "request_quit", "Quit"),
+            # override Textual's built-in ctrl+q quit
+            Binding("ctrl+q", "noop", show=False, priority=True),
             ("?", "show_help", "Help"),
             ("ctrl+h", "show_help", "Help"),
             ("left", "focus_previous", "Previous"),
@@ -311,6 +314,9 @@ def _run_interactive(
                 str(selects[3].value) if selects[3].value != Select.BLANK else None
             )
             return period, ratio, mode, color_cycle
+
+        def action_noop(self) -> None:
+            pass
 
         def action_show_help(self) -> None:
             self.push_screen(HelpScreen())
