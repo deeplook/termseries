@@ -20,7 +20,12 @@ from termseries.period import (
     yahoo_auto_interval,
 )
 from termseries.render import _output_png, _render_png
-from termseries.terminal import _VALID_THEMES, _load_config, _parse_ratio
+from termseries.terminal import (
+    _VALID_PROTOCOLS,
+    _VALID_THEMES,
+    _load_config,
+    _parse_ratio,
+)
 from termseries.tui import _run_interactive
 from termseries.types import (
     ColorCycle,
@@ -55,6 +60,24 @@ def _validate_theme(value: str | None) -> str | None:
     """Typer callback that validates the --theme option."""
     if value is not None and value not in _VALID_THEMES:
         raise typer.BadParameter('theme must be "dark", "light", or "auto"')
+    return value
+
+
+def _validate_protocol(value: str | None) -> str | None:
+    """Typer callback that validates the --protocol option."""
+    if value is not None and value not in _VALID_PROTOCOLS:
+        raise typer.BadParameter(
+            'protocol must be "auto", "kitty", "iterm2", or "sixel"'
+        )
+    return value
+
+
+def _validate_output(value: str | None) -> str | None:
+    """Typer callback that validates the --output option.
+
+    Keywords "auto", "inline", and "-" are reserved; any other value is treated
+    as a file path and accepted as-is.
+    """
     return value
 
 
@@ -114,6 +137,20 @@ def main(
             callback=_validate_theme,
         ),
     ] = None,
+    output: Annotated[
+        str | None,
+        typer.Option(
+            help='Output: "auto" (default), "inline", "-" (stdout), or a file path',
+            callback=_validate_output,
+        ),
+    ] = None,
+    protocol: Annotated[
+        str | None,
+        typer.Option(
+            help='Inline protocol: "auto" (default), "kitty", "iterm2", or "sixel"',
+            callback=_validate_protocol,
+        ),
+    ] = None,
 ) -> None:
     import warnings
 
@@ -133,6 +170,9 @@ def main(
     ctx.obj["tz"] = tz
     ctx.obj["line_style"] = line_style.value
     ctx.obj["gaps"] = gaps
+
+    cfg: dict[str, str] | None = None
+
     if theme is None:
         cfg = _load_config()
         raw = cfg.get("theme", "auto")
@@ -144,6 +184,25 @@ def main(
             raw = "auto"
         theme = raw
     ctx.obj["theme"] = theme
+
+    if output is None:
+        if cfg is None:
+            cfg = _load_config()
+        output = cfg.get("output", "auto")
+    ctx.obj["output"] = output
+
+    if protocol is None:
+        if cfg is None:
+            cfg = _load_config()
+        raw_protocol = cfg.get("protocol", "auto")
+        if raw_protocol not in _VALID_PROTOCOLS:
+            warnings.warn(
+                f"Invalid protocol {raw_protocol!r} in termseries.env, using 'auto'",
+                stacklevel=2,
+            )
+            raw_protocol = "auto"
+        protocol = raw_protocol
+    ctx.obj["protocol"] = protocol
 
 
 @app.command()  # type: ignore[misc]
@@ -203,7 +262,15 @@ def yahoo(
         line_style=opts["line_style"],
         theme=opts["theme"],
     )
-    _output_png(png, tickers, r, period, copy=opts["copy"])
+    _output_png(
+        png,
+        tickers,
+        r,
+        period,
+        copy=opts["copy"],
+        output=opts["output"],
+        protocol=opts["protocol"],
+    )
 
 
 @app.command(name="csv")  # type: ignore[misc]
@@ -259,7 +326,15 @@ def csv_cmd(
         theme=opts["theme"],
     )
     labels = [Path(f).stem for f in files]
-    _output_png(png, labels, r, period, copy=opts["copy"])
+    _output_png(
+        png,
+        labels,
+        r,
+        period,
+        copy=opts["copy"],
+        output=opts["output"],
+        protocol=opts["protocol"],
+    )
 
 
 @app.command()  # type: ignore[misc]
@@ -320,7 +395,15 @@ def ha(
         theme=opts["theme"],
     )
     labels = list(data.keys())
-    _output_png(png, labels, r, period, copy=opts["copy"])
+    _output_png(
+        png,
+        labels,
+        r,
+        period,
+        copy=opts["copy"],
+        output=opts["output"],
+        protocol=opts["protocol"],
+    )
 
 
 @app.command()  # type: ignore[misc]

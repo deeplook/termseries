@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import os
 import sys
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
@@ -270,10 +269,27 @@ def _output_png(
     period: str,
     *,
     copy: bool = False,
+    output: str = "auto",
+    protocol: str = "auto",
 ) -> None:
     """Handle output of rendered PNG: optional clipboard copy, inline display
-    (Kitty TGP / iTerm2 / Sixel), or fallback file write.
+    (Kitty TGP / iTerm2 / Sixel), named file write, or raw stdout.
+
+    Parameters
+    ----------
+    output:
+        "auto"   — inline if terminal supports it, else auto-named file (default)
+        "inline" — force inline; warn and fall back to file if no protocol detected
+        "-"      — write raw PNG bytes to stdout (no terminal escapes)
+        other    — write PNG to this path
+    protocol:
+        "auto"   — detect from terminal environment (default)
+        "kitty"  — Kitty Terminal Graphics Protocol
+        "iterm2" — iTerm2 OSC 1337 Inline Images Protocol
+        "sixel"  — Sixel graphics
     """
+    import warnings
+
     if copy:
         _copy_to_clipboard(png)
         w, h = _png_dimensions(png)
@@ -284,29 +300,64 @@ def _output_png(
             msg += " (remote machine -- may not reach your local clipboard)"
         print(msg)
 
-    force_inline = os.environ.get("TERMSERIES_FORCE_INLINE") == "1"
-    no_inline = os.environ.get("TERMSERIES_NO_INLINE") == "1"
-
-    if no_inline:
-        pass  # fall through to file
-    elif _is_kitty():
-        _print_kitty_png(png)
-        sys.stdout.flush()
-        return
-    elif _is_iterm2():
-        _print_iterm2_png(png)
-        sys.stdout.flush()
-        return
-    elif _is_sixel_terminal():
-        _print_sixel_png(png)
-        sys.stdout.flush()
-        return
-    elif force_inline:
-        _print_iterm2_png(png)
-        sys.stdout.flush()
+    # Raw stdout: binary PNG bytes, no terminal escapes
+    if output == "-":
+        sys.stdout.buffer.write(png)
+        sys.stdout.buffer.flush()
         return
 
-    # Fallback: write a file so the plot isn't lost.
+    # Named file
+    if output not in ("auto", "inline"):
+        with open(output, "wb") as f:
+            f.write(png)
+        print(f"Wrote plot to {output}")
+        return
+
+    # --- Inline / auto logic ---
+
+    def _emit_inline() -> bool:
+        """Emit PNG inline using the resolved protocol. Returns False when protocol
+        is 'auto' and no supported terminal is detected."""
+        if protocol == "kitty":
+            _print_kitty_png(png)
+        elif protocol == "iterm2":
+            _print_iterm2_png(png)
+        elif protocol == "sixel":
+            _print_sixel_png(png)
+        else:  # auto: run detection chain
+            if _is_kitty():
+                _print_kitty_png(png)
+            elif _is_iterm2():
+                _print_iterm2_png(png)
+            elif _is_sixel_terminal():
+                _print_sixel_png(png)
+            else:
+                return False
+        sys.stdout.flush()
+        return True
+
+    if output == "inline":
+        if not _emit_inline():
+            warnings.warn(
+                "No inline protocol detected; falling back to file output.",
+                stacklevel=2,
+            )
+            # fall through to auto-named file below
+        else:
+            return
+    else:  # auto
+        if protocol != "auto":
+            # Explicit protocol: go inline only if auto-detection would have
+            if _is_kitty() or _is_iterm2() or _is_sixel_terminal():
+                _emit_inline()
+                return
+            # else fall through to auto-named file
+        else:
+            if _emit_inline():
+                return
+            # else fall through to auto-named file
+
+    # Auto-named file fallback
     names = [n.strip().upper() for n in series_names if n.strip()]
     names_part = "-".join(names[:6])
     if len(names) > 6:

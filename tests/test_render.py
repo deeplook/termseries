@@ -137,28 +137,6 @@ class TestOutputPng:
             _output_png(small_png, ["A"], (4, 1), "7d")
         mock.assert_called_once_with(small_png)
 
-    def test_force_inline_falls_back_to_iterm2(
-        self, small_png: bytes, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("TERMSERIES_FORCE_INLINE", "1")
-        with patch("termseries.render._print_iterm2_png") as mock:
-            _output_png(small_png, ["A"], (4, 1), "7d")
-        mock.assert_called_once_with(small_png)
-
-    def test_no_inline_writes_file(
-        self,
-        small_png: bytes,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: pytest.TempPathFactory,
-    ) -> None:
-        monkeypatch.setenv("TERMSERIES_NO_INLINE", "1")
-        monkeypatch.setenv("TERM", "xterm-kitty")
-        monkeypatch.chdir(tmp_path)
-        _output_png(small_png, ["TSLA"], (4, 1), "7d")
-        written = tmp_path / "termseries_TSLA_7d_4x1.png"
-        assert written.exists()
-        assert written.read_bytes() == small_png
-
     def test_fallback_writes_file(
         self,
         small_png: bytes,

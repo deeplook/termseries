@@ -37,6 +37,9 @@ from termseries.render import (
     _transform_returns,
 )
 from termseries.terminal import (
+    _VALID_OUTPUTS,
+    _VALID_PROTOCOLS,
+    _VALID_THEMES,
     _copy_to_clipboard,
     _detect_dark_terminal,
     _is_docker,
@@ -86,6 +89,9 @@ __all__ = [
     "_transform_cumulative",
     "_transform_delta",
     "_run_interactive",
+    "_VALID_THEMES",
+    "_VALID_OUTPUTS",
+    "_VALID_PROTOCOLS",
     "_is_kitty",
     "_is_iterm2",
     "_is_sixel_terminal",

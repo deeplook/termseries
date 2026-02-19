@@ -45,8 +45,6 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "ITERM_SESSION_ID",
         "SSH_CONNECTION",
         "SSH_CLIENT",
-        "TERMSERIES_FORCE_INLINE",
-        "TERMSERIES_NO_INLINE",
         "COLORFGBG",
         "ITERM_PROFILE",
         "WAYLAND_DISPLAY",

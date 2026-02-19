@@ -164,6 +164,8 @@ def _parse_ratio(value: str) -> tuple[int, int]:
 
 
 _VALID_THEMES = frozenset({"dark", "light", "auto"})
+_VALID_OUTPUTS = frozenset({"auto", "inline", "-"})
+_VALID_PROTOCOLS = frozenset({"auto", "kitty", "iterm2", "sixel"})
 
 
 def _load_config() -> dict[str, str]:
