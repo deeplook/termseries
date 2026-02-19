@@ -41,18 +41,62 @@ def _run_interactive(
     from textual import events
     from textual.app import App, ComposeResult
     from textual.containers import Horizontal
+    from textual.screen import ModalScreen
     from textual.timer import Timer
-    from textual.widgets import Input, Select
+    from textual.widgets import Input, Select, Static
     from textual.widgets._select import SelectOverlay
     from textual_image.widget import Image
 
     _CUSTOM = "__custom__"
 
-    class TermSeriesApp(App):  # type: ignore[misc]
+    _HELP_TEXT = """\
+[bold]termseries — interactive mode[/bold]
+
+[bold cyan]Controls[/bold cyan]
+  [bold]←  →[/bold]           Move focus between controls
+  [bold]Enter[/bold]           Apply ticker / custom period
+
+[bold cyan]Chart[/bold cyan]
+  [bold]ctrl+y[/bold]          Copy current plot to clipboard
+  [bold]ctrl+r[/bold]          Toggle auto-reload
+
+[bold cyan]Help & Quit[/bold cyan]
+  [bold]?  ctrl+h[/bold]       Show this help screen
+  [bold]Escape[/bold]           Quit
+  [bold]ctrl+d[/bold]           Quit
+  [bold]ctrl+c[/bold]           Quit (press twice to confirm)
+
+[dim]Press any key to close[/dim]\
+"""
+
+    class HelpScreen(ModalScreen):  # type: ignore
+        CSS = """
+        HelpScreen {
+            align: center middle;
+        }
+        #help-panel {
+            background: $surface;
+            border: round $primary;
+            padding: 1 3;
+            width: auto;
+            height: auto;
+        }
+        """
+
+        def compose(self) -> ComposeResult:
+            yield Static(_HELP_TEXT, id="help-panel")
+
+        def on_key(self, event: events.Key) -> None:
+            event.stop()
+            self.dismiss()
+
+    class TermSeriesApp(App):  # type: ignore
         BINDINGS = [
             ("escape", "quit", "Quit"),
             ("ctrl+d", "quit", "Quit"),
             ("ctrl+c", "request_quit", "Quit"),
+            ("?", "show_help", "Help"),
+            ("ctrl+h", "show_help", "Help"),
             ("left", "focus_previous", "Previous"),
             ("right", "focus_next", "Next"),
             ("ctrl+y", "yank", "Copy"),
@@ -267,6 +311,9 @@ def _run_interactive(
                 str(selects[3].value) if selects[3].value != Select.BLANK else None
             )
             return period, ratio, mode, color_cycle
+
+        def action_show_help(self) -> None:
+            self.push_screen(HelpScreen())
 
         _QUIT_NOTIFY_TIMEOUT = 3.0
 
