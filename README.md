@@ -325,6 +325,8 @@ To persist the setting, create a `termseries.env` config file. Termseries search
 THEME=dark
 ```
 
+See [`termseries.env.example`](termseries.env.example) for a commented template.
+
 Precedence (highest to lowest): `--theme` flag → config file → auto-detection.
 
 ## Project Structure
