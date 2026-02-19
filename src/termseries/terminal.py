@@ -12,6 +12,7 @@ from io import BytesIO
 from pathlib import Path
 
 import typer
+from dotenv import dotenv_values
 
 
 def _print_kitty_png(png_bytes: bytes) -> None:
@@ -162,20 +163,42 @@ def _parse_ratio(value: str) -> tuple[int, int]:
     return w, h
 
 
-def _detect_dark_terminal() -> bool:
-    """Best-effort guess whether the terminal background is dark.
+_VALID_THEMES = frozenset({"dark", "light", "auto"})
 
-    Detection sources (in order):
-    - TERMSERIES_DARK / TERMSERIES_LIGHT overrides
-    - COLORFGBG (common in many terminals; last component is background color)
-    - iTerm2 profile name hints
-    - fallback: assume dark
+
+def _load_config() -> dict[str, str]:
+    """Load settings from the first found termseries.env config file.
+
+    Searches (first found wins):
+    1. .termseries.env in the current working directory
+    2. ~/.config/termseries/termseries.env
     """
-    if os.environ.get("TERMSERIES_DARK") == "1":
+    candidates = [
+        Path.cwd() / ".termseries.env",
+        Path.home() / ".config" / "termseries" / "termseries.env",
+    ]
+    for path in candidates:
+        if path.exists():
+            raw = dotenv_values(path)
+            return {k.lower(): v for k, v in raw.items() if v is not None}
+    return {}
+
+
+def _detect_dark_terminal(theme: str) -> bool:
+    """Return True if the dark theme should be used.
+
+    Parameters
+    ----------
+    theme:
+        "dark" or "light" short-circuits immediately.
+        "auto" runs heuristics (COLORFGBG, iTerm2 profile) and falls back to dark.
+    """
+    if theme == "dark":
         return True
-    if os.environ.get("TERMSERIES_LIGHT") == "1":
+    if theme == "light":
         return False
 
+    # auto: run heuristics
     colorfgbg = os.environ.get("COLORFGBG")
     if colorfgbg:
         parts = colorfgbg.split(";")

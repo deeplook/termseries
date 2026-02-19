@@ -20,7 +20,7 @@ from termseries.period import (
     yahoo_auto_interval,
 )
 from termseries.render import _output_png, _render_png
-from termseries.terminal import _parse_ratio
+from termseries.terminal import _VALID_THEMES, _load_config, _parse_ratio
 from termseries.tui import _run_interactive
 from termseries.types import (
     ColorCycle,
@@ -48,6 +48,13 @@ def _validate_period(value: str) -> str:
         parse_period(value)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
+    return value
+
+
+def _validate_theme(value: str | None) -> str | None:
+    """Typer callback that validates the --theme option."""
+    if value is not None and value not in _VALID_THEMES:
+        raise typer.BadParameter('theme must be "dark", "light", or "auto"')
     return value
 
 
@@ -100,7 +107,16 @@ def main(
             callback=_validate_gaps,
         ),
     ] = "connect",
+    theme: Annotated[
+        str | None,
+        typer.Option(
+            help='Plot theme: "dark", "light", or "auto" (follow terminal, default)',
+            callback=_validate_theme,
+        ),
+    ] = None,
 ) -> None:
+    import warnings
+
     ctx.ensure_object(dict)
     effective_ratio = ("fit" if interactive else "4:1") if ratio is None else ratio
     ctx.obj["ratio"] = (
@@ -117,6 +133,17 @@ def main(
     ctx.obj["tz"] = tz
     ctx.obj["line_style"] = line_style.value
     ctx.obj["gaps"] = gaps
+    if theme is None:
+        cfg = _load_config()
+        raw = cfg.get("theme", "auto")
+        if raw not in _VALID_THEMES:
+            warnings.warn(
+                f"Invalid theme {raw!r} in termseries.env, using 'auto'",
+                stacklevel=2,
+            )
+            raw = "auto"
+        theme = raw
+    ctx.obj["theme"] = theme
 
 
 @app.command()  # type: ignore[misc]
@@ -157,6 +184,7 @@ def yahoo(
             reload_interval=opts["reload"],
             tz=opts["tz"],
             line_style=opts["line_style"],
+            theme=opts["theme"],
         )
         raise typer.Exit()
 
@@ -173,6 +201,7 @@ def yahoo(
         tz=opts["tz"],
         interval_label=interval_label,
         line_style=opts["line_style"],
+        theme=opts["theme"],
     )
     _output_png(png, tickers, r, period, copy=opts["copy"])
 
@@ -209,6 +238,7 @@ def csv_cmd(
             tz=opts["tz"],
             line_style=opts["line_style"],
             anchor_now=True,
+            theme=opts["theme"],
         )
         raise typer.Exit()
 
@@ -226,6 +256,7 @@ def csv_cmd(
         tz=opts["tz"],
         line_style=opts["line_style"],
         xlim=xlim_now(period, data),
+        theme=opts["theme"],
     )
     labels = [Path(f).stem for f in files]
     _output_png(png, labels, r, period, copy=opts["copy"])
@@ -269,6 +300,7 @@ def ha(
             reload_interval=opts["reload"],
             tz=opts["tz"],
             line_style=opts["line_style"],
+            theme=opts["theme"],
         )
         raise typer.Exit()
 
@@ -285,6 +317,7 @@ def ha(
         style_override=opts["style"],
         tz=opts["tz"],
         line_style=opts["line_style"],
+        theme=opts["theme"],
     )
     labels = list(data.keys())
     _output_png(png, labels, r, period, copy=opts["copy"])

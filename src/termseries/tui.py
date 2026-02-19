@@ -33,6 +33,7 @@ def _run_interactive(
     tz: str = "UTC",
     line_style: str = "linear",
     anchor_now: bool = False,
+    theme: str = "auto",
 ) -> None:
     """Launch the Textual-based interactive chart viewer."""
     from PIL import Image as PILImage
@@ -231,6 +232,7 @@ def _run_interactive(
                     tz=tz,
                     line_style=line_style,
                     xlim=xlim_now(period, data) if anchor_now else None,
+                    theme=theme,
                 )
             except (ValueError, RuntimeError) as e:
                 self.notify(str(e), severity="warning")

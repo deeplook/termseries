@@ -112,6 +112,7 @@ def _render_png(
     interval_label: str = "Daily",
     line_style: str = "linear",
     xlim: tuple[datetime, datetime] | None = None,
+    theme: str = "auto",
 ) -> bytes:
     """Render a time-series chart and return PNG bytes.
 
@@ -151,7 +152,7 @@ def _render_png(
     if not names:
         raise ValueError("No data series provided. Pass at least one series.")
 
-    dark = _detect_dark_terminal()
+    dark = _detect_dark_terminal(theme)
     base_style = "termseries.dark" if dark else "termseries.light"
     if style_override:
         plt.style.use([base_style, style_override])

@@ -14,6 +14,7 @@ from termseries.terminal import (
     _is_kitty,
     _is_sixel_terminal,
     _is_ssh_session,
+    _load_config,
     _parse_ratio,
     _png_dimensions,
     _print_iterm2_png,
@@ -164,45 +165,97 @@ class TestIsDocker:
 
 @pytest.mark.usefixtures("_clean_env")
 class TestDetectDarkTerminal:
-    def test_force_dark(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("TERMSERIES_DARK", "1")
-        assert _detect_dark_terminal() is True
+    def test_theme_dark(self) -> None:
+        assert _detect_dark_terminal("dark") is True
 
-    def test_force_light(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("TERMSERIES_LIGHT", "1")
-        assert _detect_dark_terminal() is False
-
-    def test_dark_overrides_light(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("TERMSERIES_DARK", "1")
-        monkeypatch.setenv("TERMSERIES_LIGHT", "1")
-        assert _detect_dark_terminal() is True
+    def test_theme_light(self) -> None:
+        assert _detect_dark_terminal("light") is False
 
     def test_colorfgbg_dark_bg(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("COLORFGBG", "15;0")
-        assert _detect_dark_terminal() is True
+        assert _detect_dark_terminal("auto") is True
 
     def test_colorfgbg_light_bg(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("COLORFGBG", "0;15")
-        assert _detect_dark_terminal() is False
+        assert _detect_dark_terminal("auto") is False
 
     def test_colorfgbg_three_parts(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("COLORFGBG", "15;0;0")
-        assert _detect_dark_terminal() is True
+        assert _detect_dark_terminal("auto") is True
 
     def test_colorfgbg_invalid(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("COLORFGBG", "garbage")
-        assert _detect_dark_terminal() is True
+        assert _detect_dark_terminal("auto") is True
 
     def test_iterm_profile_dark(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ITERM_PROFILE", "Solarized Dark")
-        assert _detect_dark_terminal() is True
+        assert _detect_dark_terminal("auto") is True
 
     def test_iterm_profile_light(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ITERM_PROFILE", "Solarized Light")
-        assert _detect_dark_terminal() is False
+        assert _detect_dark_terminal("auto") is False
 
-    def test_default_is_dark(self) -> None:
-        assert _detect_dark_terminal() is True
+    def test_auto_default_is_dark(self) -> None:
+        assert _detect_dark_terminal("auto") is True
+
+
+# ===================================================================
+# _load_config
+# ===================================================================
+
+
+class TestLoadConfig:
+    def test_no_file_returns_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+        assert _load_config() == {}
+
+    def test_cwd_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+        (tmp_path / ".termseries.env").write_text("THEME=dark\n")
+        assert _load_config().get("theme") == "dark"
+
+    def test_global_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        home = tmp_path / "home"
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(Path, "home", lambda: home)
+        global_conf = home / ".config" / "termseries" / "termseries.env"
+        global_conf.parent.mkdir(parents=True)
+        global_conf.write_text("THEME=light\n")
+        assert _load_config().get("theme") == "light"
+
+    def test_cwd_overrides_global(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        home = tmp_path / "home"
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(Path, "home", lambda: home)
+        (tmp_path / ".termseries.env").write_text("THEME=dark\n")
+        global_conf = home / ".config" / "termseries" / "termseries.env"
+        global_conf.parent.mkdir(parents=True)
+        global_conf.write_text("THEME=light\n")
+        assert _load_config().get("theme") == "dark"
+
+    def test_unknown_keys_present_in_result(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+        (tmp_path / ".termseries.env").write_text("THEME=dark\nFOO=bar\n")
+        cfg = _load_config()
+        assert cfg.get("theme") == "dark"
+        assert "foo" in cfg  # unknown keys are lowercased and returned, just unused
+
+    def test_keys_are_lowercased(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+        (tmp_path / ".termseries.env").write_text("THEME=light\n")
+        assert _load_config().get("theme") == "light"
 
 
 # ===================================================================

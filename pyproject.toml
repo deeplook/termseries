@@ -23,6 +23,7 @@ classifiers = [
 dependencies = [
     "matplotlib",
     "pillow>=12.1.0",
+    "python-dotenv>=1.0",
     "requests>=2.31",
     "textual>=7.5.0",
     "textual-image",

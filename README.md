@@ -306,8 +306,26 @@ for all available keys.
 | `HASS_TOKEN` | Home Assistant long-lived access token |
 | `TERMSERIES_FORCE_INLINE=1` | Try inline output on unrecognized terminals |
 | `TERMSERIES_NO_INLINE=1` | Always write PNG file (never inline) |
-| `TERMSERIES_DARK=1` | Force dark theme |
-| `TERMSERIES_LIGHT=1` | Force light theme |
+
+## Theme
+
+Use `--theme dark|light|auto` to control the plot theme. The default is `auto`, which detects the terminal background.
+
+```
+termseries --theme dark yahoo TSLA
+```
+
+To persist the setting, create a `termseries.env` config file. Termseries searches for (first found wins):
+
+1. `.termseries.env` in the current working directory
+2. `~/.config/termseries/termseries.env`
+
+```ini
+# termseries.env
+THEME=dark
+```
+
+Precedence (highest to lowest): `--theme` flag → config file → auto-detection.
 
 ## Project Structure
 
