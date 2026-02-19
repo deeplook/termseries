@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
@@ -51,6 +52,7 @@ def _run_interactive(
         BINDINGS = [
             ("escape", "quit", "Quit"),
             ("ctrl+d", "quit", "Quit"),
+            ("ctrl+c", "request_quit", "Quit"),
             ("left", "focus_previous", "Previous"),
             ("right", "focus_next", "Next"),
             ("ctrl+y", "yank", "Copy"),
@@ -58,6 +60,7 @@ def _run_interactive(
         ]
 
         _last_png: bytes | None = None
+        _last_ctrl_c: float | None = None
         _last_data: dict[str, TimeSeries] | None = None
         _last_mode: str = "absolute"
         _reverting: bool = False
@@ -264,6 +267,22 @@ def _run_interactive(
                 str(selects[3].value) if selects[3].value != Select.BLANK else None
             )
             return period, ratio, mode, color_cycle
+
+        _QUIT_NOTIFY_TIMEOUT = 3.0
+
+        def action_request_quit(self) -> None:
+            now = time.monotonic()
+            if self._last_ctrl_c is not None and now - self._last_ctrl_c < 2.0:
+                self.exit()
+            else:
+                self._last_ctrl_c = now
+                self.notify(
+                    "Press Ctrl+C again to quit", timeout=self._QUIT_NOTIFY_TIMEOUT
+                )
+                self.set_timer(self._QUIT_NOTIFY_TIMEOUT + 0.1, self._redraw_chart)
+
+        def _redraw_chart(self) -> None:
+            self.query_one("#chart", Image).refresh()
 
         def action_yank(self) -> None:
             if self._last_png is None:
