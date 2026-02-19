@@ -57,17 +57,17 @@ def _run_interactive(
   [bold]Tab[/bold]             Move focus between controls
   [bold]←  →[/bold]            Move focus between controls
   [bold]↑  ↓[/bold]            Navigate dropdown options
-  [bold]Enter[/bold]           Apply ticker / custom period
+  [bold]Enter[/bold]           Select current option
 
 [bold cyan]Chart[/bold cyan]
-  [bold]ctrl + y[/bold]        Copy current plot to clipboard
-  [bold]ctrl + r[/bold]        Toggle auto-reload
+  [bold]Ctrl + y[/bold]        Copy current plot to clipboard
+  [bold]Ctrl + r[/bold]        Toggle auto-reload
 
 [bold cyan]Help & Quit[/bold cyan]
-  [bold]?  ctrl + h[/bold]     Show this help screen
+  [bold]?  Ctrl + h[/bold]     Show this help screen
   [bold]Escape[/bold]          Quit
-  [bold]ctrl + d[/bold]        Quit
-  [bold]ctrl + c[/bold]        Quit (press twice to confirm)
+  [bold]Ctrl + d[/bold]        Quit
+  [bold]Ctrl + c[/bold]        Quit (press twice to confirm)
 
 [dim]Press any key to close[/dim]\
 """
