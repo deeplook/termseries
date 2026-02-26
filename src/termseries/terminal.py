@@ -73,7 +73,7 @@ def _is_iterm2() -> bool:
 def _is_sixel_terminal() -> bool:
     """Return True for terminals known to support Sixel graphics."""
     term_program = os.environ.get("TERM_PROGRAM", "")
-    if term_program in ("WezTerm", "vscode"):
+    if term_program == "WezTerm":
         return True
     term = os.environ.get("TERM", "")
     return term.startswith("foot") or term.startswith("mlterm") or term == "xterm"
