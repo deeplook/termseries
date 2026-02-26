@@ -36,7 +36,10 @@ from termseries.types import (
 )
 from termseries.yahoo import fetch_yahoo_series
 
-app = typer.Typer(help="Render time-series data as terminal plots.")
+app = typer.Typer(
+    help="Render time-series data as terminal plots.",
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 
 
 def _apply_gaps(data: dict[str, TimeSeries], gaps: str) -> dict[str, TimeSeries]:
@@ -96,9 +99,27 @@ def _validate_gaps(value: str) -> str:
     return value
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        from importlib.metadata import version
+
+        typer.echo(f"termseries {version('termseries')}")
+        raise typer.Exit()
+
+
 @app.callback()  # type: ignore[misc]
 def main(
     ctx: typer.Context,
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            "-v",
+            help="Show version and exit",
+            callback=_version_callback,
+            is_eager=True,
+        ),
+    ] = False,
     ratio: Annotated[
         str | None, typer.Option(help='Aspect ratio "W:H" or "fit"')
     ] = None,
