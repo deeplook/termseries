@@ -356,6 +356,7 @@ def _output_png(
             if _emit_inline():
                 return
             # else fall through to auto-named file
+        print("No inline image protocol detected; saving plot to file.")
 
     # Auto-named file fallback
     names = [n.strip().upper() for n in series_names if n.strip()]
