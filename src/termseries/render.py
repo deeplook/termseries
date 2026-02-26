@@ -26,6 +26,7 @@ from termseries.terminal import (
     _print_iterm2_png,
     _print_kitty_png,
     _print_sixel_png,
+    _terminal_pixel_width,
 )
 from termseries.types import TimeSeries
 
@@ -112,6 +113,7 @@ def _render_png(
     line_style: str = "linear",
     xlim: tuple[datetime, datetime] | None = None,
     theme: str = "auto",
+    save_dpi: float | None = None,
 ) -> bytes:
     """Render a time-series chart and return PNG bytes.
 
@@ -257,7 +259,15 @@ def _render_png(
     fig.autofmt_xdate()
 
     buf = BytesIO()
-    fig.savefig(buf, format="png")
+    _save_dpi: float | str
+    if save_dpi is not None:
+        _save_dpi = save_dpi
+    elif sys.stdout.isatty():
+        px_width = _terminal_pixel_width()
+        _save_dpi = px_width / width_in if px_width else "figure"
+    else:
+        _save_dpi = "figure"
+    fig.savefig(buf, format="png", dpi=_save_dpi)
     plt.close(fig)
     return buf.getvalue()
 

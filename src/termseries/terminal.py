@@ -85,6 +85,21 @@ def _png_dimensions(png_bytes: bytes) -> tuple[int, int]:
     return w, h
 
 
+def _terminal_pixel_width() -> int | None:
+    """Return the terminal width in pixels via TIOCGWINSZ, or None if unavailable."""
+    try:
+        import fcntl
+        import termios
+
+        result = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, b"\x00" * 8)
+        _rows, _cols, xpixels, _ypixels = struct.unpack("HHHH", result)
+        if xpixels > 0:
+            return int(xpixels)
+    except Exception:
+        pass
+    return None
+
+
 def _is_ssh_session() -> bool:
     """Return True if running inside an SSH session."""
     return bool(os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_CLIENT"))

@@ -30,6 +30,7 @@ from termseries.terminal import (
     _is_ssh_session,
     _load_config,
     _parse_ratio,
+    _terminal_pixel_width,
 )
 from termseries.tui import _run_interactive
 from termseries.types import (
@@ -438,19 +439,20 @@ def info() -> None:
     import os
     import sys
 
-    rows = [
+    rows: list[tuple[str, bool | str]] = [
         ("stdout is a TTY", sys.stdout.isatty()),
         ("Kitty protocol", _is_kitty()),
         ("iTerm2 protocol", _is_iterm2()),
         ("Sixel protocol", _is_sixel_terminal()),
         ("SSH session", _is_ssh_session()),
         ("Docker container", _is_docker()),
+        ("Terminal pixel width", str(_terminal_pixel_width() or "unknown")),
     ]
 
     label_w = max(len(label) for label, _ in rows)
     print("Terminal info:")
     for label, value in rows:
-        mark = "yes" if value else "no"
+        mark = value if isinstance(value, str) else ("yes" if value else "no")
         print(f"  {label:<{label_w}}  {mark}")
 
     print()

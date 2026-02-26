@@ -52,6 +52,7 @@ from termseries.terminal import (
     _print_iterm2_png,
     _print_kitty_png,
     _print_sixel_png,
+    _terminal_pixel_width,
 )
 from termseries.tui import _run_interactive
 from termseries.types import ColorCycle, Mode, TimeSeries
@@ -104,5 +105,6 @@ __all__ = [
     "_png_dimensions",
     "_copy_to_clipboard",
     "_parse_ratio",
+    "_terminal_pixel_width",
     "insert_gaps",
 ]

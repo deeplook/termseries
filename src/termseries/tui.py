@@ -246,22 +246,19 @@ def _run_interactive(
             cell = get_cell_size()
             w_cells = self.size.width
             h_cells = self.size.height - 2  # subtract menu row
-            # Derive width_in from actual terminal pixel width so that
-            # matplotlib font sizes (in points) stay visually constant
-            # regardless of terminal width.  DPI must match the style.
-            dpi = 200
-            width_in = max(w_cells * cell.width, 1) / dpi
+            w_px = max(w_cells * cell.width, 1)
+            h_px = max(h_cells * cell.height, 1)
+            # Keep figure at a fixed 12-inch width and scale DPI to hit the
+            # target pixel width.  This keeps font sizes proportional.
+            _base_width_in = 12.0
+            _save_dpi = w_px / _base_width_in
             if ratio == "fit":
-                height_in = max(h_cells * cell.height, 1) / dpi
-                figsize: tuple[float, float] | None = (width_in, height_in)
-                ratio_tuple = (4, 1)
+                # Pass pixel dimensions as the ratio so height scales correctly.
+                ratio_tuple = (w_px, h_px)
                 chart.styles.width = "1fr"
                 chart.styles.height = "1fr"
             else:
                 ratio_tuple = _parse_ratio(ratio) if ratio else (4, 1)
-                rw, rh = ratio_tuple
-                height_in = width_in * rh / rw
-                figsize = (width_in, height_in)
                 chart.styles.width = "auto"
                 chart.styles.height = "auto"
             tickers_str = self.query_one("#tickers", Input).value.strip()
@@ -276,7 +273,6 @@ def _run_interactive(
                     data,
                     ratio_tuple,
                     period,
-                    figsize=figsize,
                     color_cycle=color_cycle,
                     mode=mode or "absolute",
                     value_unit=value_unit,
@@ -285,6 +281,7 @@ def _run_interactive(
                     line_style=line_style,
                     xlim=xlim_now(period, data) if anchor_now else None,
                     theme=theme,
+                    save_dpi=_save_dpi,
                 )
             except (ValueError, RuntimeError) as e:
                 self.notify(str(e), severity="warning")
