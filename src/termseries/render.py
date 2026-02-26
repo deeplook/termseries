@@ -318,6 +318,8 @@ def _output_png(
     def _emit_inline() -> bool:
         """Emit PNG inline using the resolved protocol. Returns False when protocol
         is 'auto' and no supported terminal is detected."""
+        if not sys.stdout.isatty():
+            return False
         if protocol == "kitty":
             _print_kitty_png(png)
         elif protocol == "iterm2":
