@@ -23,6 +23,11 @@ from termseries.render import _output_png, _render_png
 from termseries.terminal import (
     _VALID_PROTOCOLS,
     _VALID_THEMES,
+    _is_docker,
+    _is_iterm2,
+    _is_kitty,
+    _is_sixel_terminal,
+    _is_ssh_session,
     _load_config,
     _parse_ratio,
 )
@@ -425,6 +430,56 @@ def ha(
         output=opts["output"],
         protocol=opts["protocol"],
     )
+
+
+@app.command()  # type: ignore[misc]
+def info() -> None:
+    """Show terminal environment and inline image protocol support."""
+    import os
+    import sys
+
+    rows = [
+        ("stdout is a TTY", sys.stdout.isatty()),
+        ("Kitty protocol", _is_kitty()),
+        ("iTerm2 protocol", _is_iterm2()),
+        ("Sixel protocol", _is_sixel_terminal()),
+        ("SSH session", _is_ssh_session()),
+        ("Docker container", _is_docker()),
+    ]
+
+    label_w = max(len(label) for label, _ in rows)
+    print("Terminal info:")
+    for label, value in rows:
+        mark = "yes" if value else "no"
+        print(f"  {label:<{label_w}}  {mark}")
+
+    print()
+    print("Environment:")
+    for var in (
+        "TERM",
+        "TERM_PROGRAM",
+        "LC_TERMINAL",
+        "ITERM_SESSION_ID",
+        "COLORTERM",
+        "COLORFGBG",
+        "SSH_CONNECTION",
+        "SSH_CLIENT",
+    ):
+        val = os.environ.get(var)
+        if val is not None:
+            print(f"  {var}={val}")
+
+    print()
+    if not sys.stdout.isatty():
+        print("Inline rendering: no (stdout is not a TTY)")
+    elif _is_kitty():
+        print("Inline rendering: yes (kitty)")
+    elif _is_iterm2():
+        print("Inline rendering: yes (iterm2)")
+    elif _is_sixel_terminal():
+        print("Inline rendering: yes (sixel)")
+    else:
+        print("Inline rendering: no (no supported protocol detected)")
 
 
 @app.command()  # type: ignore[misc]
