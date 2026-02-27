@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 
 from termseries.period import parse_period, xlim_now
 from termseries.render import _render_png
@@ -21,7 +22,7 @@ from termseries.terminal import (
 from termseries.types import TimeSeries
 
 
-def _run_interactive(
+def _build_app(
     initial_columns: list[str] | None = None,
     *,
     period_choices: list[str],
@@ -37,8 +38,12 @@ def _run_interactive(
     line_style: str = "linear",
     anchor_now: bool = False,
     theme: str = "auto",
-) -> None:
-    """Launch the Textual-based interactive chart viewer."""
+) -> Any:
+    """Build and return the TermSeriesApp without running it.
+
+    Useful for testing via ``App.run_test()``.  All parameters are identical
+    to :func:`_run_interactive`.
+    """
     from PIL import Image as PILImage
     from textual import events
     from textual.app import App, ComposeResult
@@ -575,4 +580,40 @@ def _run_interactive(
                 self._resize_timer.stop()
             self._resize_timer = self.set_timer(0.15, self._debounced_rerender)
 
-    TermSeriesApp().run()
+    return TermSeriesApp()
+
+
+def _run_interactive(
+    initial_columns: list[str] | None = None,
+    *,
+    period_choices: list[str],
+    period: str | None = None,
+    ratio: tuple[int, int] | None = None,
+    mode: str | None = None,
+    colors: str | None = None,
+    fetch_fn: Callable[[list[str], str], dict[str, TimeSeries]],
+    value_unit: str = "USD",
+    style_override: Path | None = None,
+    reload_interval: int = 0,
+    tz: str = "UTC",
+    line_style: str = "linear",
+    anchor_now: bool = False,
+    theme: str = "auto",
+) -> None:
+    """Launch the Textual-based interactive chart viewer."""
+    _build_app(
+        initial_columns,
+        period_choices=period_choices,
+        period=period,
+        ratio=ratio,
+        mode=mode,
+        colors=colors,
+        fetch_fn=fetch_fn,
+        value_unit=value_unit,
+        style_override=style_override,
+        reload_interval=reload_interval,
+        tz=tz,
+        line_style=line_style,
+        anchor_now=anchor_now,
+        theme=theme,
+    ).run()

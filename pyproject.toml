@@ -36,6 +36,7 @@ termseries = "termseries.__main__:main"
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-asyncio>=1.0",
     "pytest-cov>=4.0",
     "mypy>=1.10",
     "ruff>=0.4",
@@ -90,6 +91,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["src"]
@@ -100,4 +102,9 @@ exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
+]
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=1.3.0",
 ]
