@@ -234,6 +234,7 @@ class TestProtocolOption:
         """--protocol kitty calls _print_kitty_png regardless of detection."""
         monkeypatch.chdir(tmp_path)
         with (
+            patch("sys.stdout.isatty", return_value=True),
             patch("termseries.render._is_kitty", return_value=False),
             patch("termseries.render._is_iterm2", return_value=True),
             patch("termseries.render._print_kitty_png") as kitty_mock,
@@ -251,6 +252,7 @@ class TestProtocolOption:
         """--protocol iterm2 calls _print_iterm2_png regardless of detection."""
         monkeypatch.chdir(tmp_path)
         with (
+            patch("sys.stdout.isatty", return_value=True),
             patch("termseries.render._is_kitty", return_value=True),
             patch("termseries.render._print_kitty_png") as kitty_mock,
             patch("termseries.render._print_iterm2_png") as iterm_mock,
@@ -267,6 +269,7 @@ class TestProtocolOption:
         """--protocol sixel calls _print_sixel_png regardless of detection."""
         monkeypatch.chdir(tmp_path)
         with (
+            patch("sys.stdout.isatty", return_value=True),
             patch("termseries.render._is_kitty", return_value=True),
             patch("termseries.render._print_kitty_png") as kitty_mock,
             patch("termseries.render._print_sixel_png") as sixel_mock,
@@ -315,6 +318,7 @@ class TestProtocolOption:
         """output=auto + explicit protocol uses that protocol when terminal detected."""
         monkeypatch.chdir(tmp_path)
         with (
+            patch("sys.stdout.isatty", return_value=True),
             patch("termseries.render._is_kitty", return_value=False),
             patch("termseries.render._is_iterm2", return_value=True),
             patch("termseries.render._is_sixel_terminal", return_value=False),
@@ -389,3 +393,61 @@ class TestOutputProtocolConfigFile:
 
         assert any("xterm" in str(x.message) for x in w)
         assert captured.get("protocol") == "auto"
+
+
+# ---------------------------------------------------------------------------
+# Validator callbacks
+# ---------------------------------------------------------------------------
+
+
+class TestValidators:
+    def test_validate_period_invalid_raises(self) -> None:
+        """`_validate_period` with a garbage string raises BadParameter."""
+        result = runner.invoke(app, ["--period", "xyz123", "yahoo", "FAKE"])
+        assert result.exit_code != 0
+
+    def test_validate_theme_invalid_raises(self) -> None:
+        """`_validate_theme` with an unknown theme raises BadParameter."""
+        result = runner.invoke(app, ["--theme", "neon", "yahoo", "FAKE"])
+        assert result.exit_code != 0
+
+    def test_version_flag(self) -> None:
+        """--version prints the version string and exits 0."""
+        result = runner.invoke(app, ["--version"])
+        assert result.exit_code == 0
+        assert "termseries" in result.output
+
+
+# ---------------------------------------------------------------------------
+# info command
+# ---------------------------------------------------------------------------
+
+
+class TestInfoCommand:
+    def test_info_runs_and_shows_terminal_info(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The info command exits 0 and includes key labels in output."""
+        with (
+            patch("termseries.cli.supports_kitty_graphics", return_value=False),
+            patch("termseries.cli.supports_iterm2_inline_images", return_value=False),
+            patch("termseries.cli.supports_sixel", return_value=False),
+        ):
+            result = runner.invoke(app, ["info"])
+        assert result.exit_code == 0
+        assert "Terminal info" in result.output
+        assert "Kitty protocol" in result.output
+        assert "Inline rendering" in result.output
+
+    def test_info_shows_env_vars_when_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Info command prints env vars that are set."""
+        monkeypatch.setenv("TERM", "xterm-kitty")
+        with (
+            patch("termseries.cli.supports_kitty_graphics", return_value=True),
+            patch("termseries.cli.supports_iterm2_inline_images", return_value=False),
+            patch("termseries.cli.supports_sixel", return_value=False),
+        ):
+            result = runner.invoke(app, ["info"])
+        assert "TERM=xterm-kitty" in result.output

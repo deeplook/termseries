@@ -23,7 +23,7 @@ format:
 	uv run ruff check --fix src tests
 
 test:
-	uv run pytest
+	uv run pytest --cov=src --cov-report=term-missing
 
 coverage:
 	uv run pytest --cov=src --cov-report=html --cov-report=term

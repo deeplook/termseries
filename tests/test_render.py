@@ -117,7 +117,10 @@ class TestOutputPng:
         self, small_png: bytes, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("TERM", "xterm-kitty")
-        with patch("termseries.render._print_kitty_png") as mock:
+        with (
+            patch("sys.stdout.isatty", return_value=True),
+            patch("termseries.render._print_kitty_png") as mock,
+        ):
             _output_png(small_png, ["A"], (4, 1), "7d")
         mock.assert_called_once_with(small_png)
 
@@ -125,7 +128,10 @@ class TestOutputPng:
         self, small_png: bytes, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("TERM_PROGRAM", "iTerm.app")
-        with patch("termseries.render._print_iterm2_png") as mock:
+        with (
+            patch("sys.stdout.isatty", return_value=True),
+            patch("termseries.render._print_iterm2_png") as mock,
+        ):
             _output_png(small_png, ["A"], (4, 1), "7d")
         mock.assert_called_once_with(small_png)
 
@@ -133,7 +139,10 @@ class TestOutputPng:
         self, small_png: bytes, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("TERM_PROGRAM", "WezTerm")
-        with patch("termseries.render._print_sixel_png") as mock:
+        with (
+            patch("sys.stdout.isatty", return_value=True),
+            patch("termseries.render._print_sixel_png") as mock,
+        ):
             _output_png(small_png, ["A"], (4, 1), "7d")
         mock.assert_called_once_with(small_png)
 
@@ -156,6 +165,7 @@ class TestOutputPng:
         monkeypatch.setenv("TERM", "xterm-kitty")
         monkeypatch.setenv("TERM_PROGRAM", "iTerm.app")
         with (
+            patch("sys.stdout.isatty", return_value=True),
             patch("termseries.render._print_kitty_png") as kitty_mock,
             patch("termseries.render._print_iterm2_png") as iterm_mock,
         ):
@@ -170,6 +180,7 @@ class TestOutputPng:
         monkeypatch.setenv("TERM_PROGRAM", "iTerm.app")
         monkeypatch.setenv("TERM", "foot")
         with (
+            patch("sys.stdout.isatty", return_value=True),
             patch("termseries.render._print_iterm2_png") as iterm_mock,
             patch("termseries.render._print_sixel_png") as sixel_mock,
         ):

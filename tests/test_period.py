@@ -10,6 +10,7 @@ from termseries.period import (
     _to_date_cutoff,
     filter_period,
     parse_period,
+    xlim_now,
     yahoo_auto_interval,
     yahoo_covering_range,
 )
@@ -300,3 +301,42 @@ class TestFilterPeriod:
 
     def test_to_date_empty_series(self) -> None:
         assert filter_period([], "ytd") == []
+
+
+# ===================================================================
+# xlim_now
+# ===================================================================
+
+
+class TestXlimNow:
+    _DATA: dict[str, list[tuple[datetime, float]]] = {
+        "A": [
+            (datetime(2024, 1, 1, tzinfo=timezone.utc), 10.0),
+            (datetime(2024, 6, 1, tzinfo=timezone.utc), 20.0),
+        ]
+    }
+
+    def test_auto_returns_none(self) -> None:
+        assert xlim_now("auto", self._DATA) is None
+
+    def test_relative_period_returns_tuple(self) -> None:
+        result = xlim_now("7d", self._DATA)
+        assert result is not None
+        start, end = result
+        assert (end - start).days == 7
+
+    def test_to_date_period_returns_tuple(self) -> None:
+        """'ytd' should return a (Jan 1, now) window."""
+        result = xlim_now("ytd", self._DATA)
+        assert result is not None
+        start, end = result
+        assert start.month == 1 and start.day == 1
+
+    def test_max_uses_earliest_data_point(self) -> None:
+        result = xlim_now("max", self._DATA)
+        assert result is not None
+        start, _end = result
+        assert start == datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+    def test_max_empty_data_returns_none(self) -> None:
+        assert xlim_now("max", {}) is None
