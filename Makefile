@@ -38,7 +38,7 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
 
 install-tool:
-	uv tool install .
+	uv tool install --reinstall .
 
 uninstall-tool:
 	uv tool uninstall termseries
