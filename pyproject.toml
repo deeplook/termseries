@@ -78,6 +78,13 @@ strict = true
 warn_return_any = true
 warn_unused_ignores = true
 
+[[tool.mypy.overrides]]
+# tui.py uses # type: ignore comments that are only active in some environments
+# (e.g. when textual stubs are absent in the pre-commit hook's isolated venv).
+# Disabling warn_unused_ignores here avoids false "unused ignore" warnings.
+module = "termseries.tui"
+warn_unused_ignores = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

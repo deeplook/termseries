@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import time
 from collections.abc import Callable
 from io import BytesIO
@@ -12,6 +13,7 @@ from termseries.render import _render_png
 from termseries.terminal import (
     _copy_to_clipboard,
     _is_docker,
+    _is_ghostty,
     _is_ssh_session,
     _parse_ratio,
     _png_dimensions,
@@ -46,7 +48,56 @@ def _run_interactive(
     from textual.timer import Timer
     from textual.widgets import Input, Select, Static
     from textual.widgets._select import SelectOverlay
-    from textual_image.widget import Image
+
+    if _is_ghostty():
+        from textual.geometry import Region
+        from textual.strip import Strip
+        from textual.widget import Widget
+
+        class Image(Widget):  # type: ignore[misc,no-redef]
+            """Placeholder widget for Ghostty inline image rendering.
+
+            The actual image is sent out-of-band by TermSeriesApp._img_cycle()
+            via driver.write() after every Textual render cycle.
+            """
+
+            can_focus = False
+
+            def __init__(
+                self,
+                image: PILImage.Image | None = None,
+                *,
+                name: str | None = None,
+                id: str | None = None,
+                classes: str | None = None,
+                disabled: bool = False,
+            ) -> None:
+                super().__init__(name=name, id=id, classes=classes, disabled=disabled)
+                self.png_bytes: bytes | None = None
+                self._image_version: int = 0
+                if image is not None:
+                    self.image = image
+
+            @property  # type: ignore[no-redef]
+            def image(self) -> PILImage.Image | None:
+                return getattr(self, "_pil_image", None)
+
+            @image.setter
+            def image(self, value: PILImage.Image | None) -> None:
+                self._pil_image = value  # type: ignore[attr-defined]
+                self.png_bytes = None
+                if value is not None:
+                    buf = BytesIO()
+                    value.save(buf, format="PNG")
+                    self.png_bytes = buf.getvalue()
+                self._image_version += 1
+                self.refresh()
+
+            def render_lines(self, crop: Region) -> list[Strip]:
+                return [Strip([])] * crop.height
+
+    else:
+        from textual_image.widget import Image  # type: ignore[no-redef,assignment]
 
     _CUSTOM = "__custom__"
 
@@ -116,6 +167,10 @@ def _run_interactive(
         _reload_timer: Timer | None = None
         _reload_interval: int = reload_interval or 30
         _resize_timer: Timer | None = None
+        # Ghostty out-of-band image state (only used when _is_ghostty())
+        _img_drawn: bool = False
+        _last_img_version: int = -1
+        _overlay_was_active: bool = False
 
         CSS = """
         Select {
@@ -378,6 +433,67 @@ def _run_interactive(
                 self._reload_timer = self.set_interval(
                     reload_interval, self._reload_tick
                 )
+            if _is_ghostty():
+                self.call_after_refresh(self._img_cycle)
+
+        def _img_cycle(self) -> None:
+            """App-level TGP image management for Ghostty.
+
+            Self-rescheduled after every render via call_after_refresh.
+            Sends the chart via Kitty TGP APC sequences through driver.write().
+            TGP images are persistent overlays (z=0) above terminal text.
+            We delete them while any overlay is active so dropdown/modal text
+            is not obscured, then redraw automatically once the overlay closes.
+            """
+            if not self._driver:
+                self.call_after_refresh(self._img_cycle)
+                return
+            driver = self._driver
+            try:
+                chart = self.query_one("#chart", Image)
+            except Exception:
+                self.call_after_refresh(self._img_cycle)
+                return
+
+            overlay_active = len(self.screen_stack) > 1 or any(
+                w.display for w in self.query(SelectOverlay)
+            )
+
+            if overlay_active:
+                if self._img_drawn:
+                    # Delete all TGP images so the dropdown/modal text is visible.
+                    driver.write("\x1b_Ga=d,d=a\x1b\\")
+                    driver.flush()
+                    self._img_drawn = False
+                self._overlay_was_active = True
+            elif chart.png_bytes is not None:
+                version = chart._image_version
+                needs_draw = (
+                    not self._img_drawn
+                    or version != self._last_img_version
+                    or self._overlay_was_active
+                )
+                if needs_draw:
+                    r = chart.region
+                    # Position cursor at chart top-left, then send TGP image.
+                    driver.write(f"\x1b7\x1b[{r.y + 1};{r.x + 1}H")
+                    b64 = base64.b64encode(chart.png_bytes).decode("ascii")
+                    first = True
+                    while b64:
+                        chunk, b64 = b64[:4096], b64[4096:]
+                        m = 1 if b64 else 0
+                        if first:
+                            driver.write(f"\x1b_Ga=T,f=100,m={m};{chunk}\x1b\\")
+                            first = False
+                        else:
+                            driver.write(f"\x1b_Gm={m};{chunk}\x1b\\")
+                    driver.write("\x1b8")
+                    driver.flush()
+                    self._img_drawn = True
+                    self._last_img_version = version
+                self._overlay_was_active = False
+
+            self.call_after_refresh(self._img_cycle)
 
         def on_select_changed(self, event: Select.Changed) -> None:  # type: ignore[type-arg,unused-ignore]
             if self._reverting:

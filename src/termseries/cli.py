@@ -11,6 +11,11 @@ from typing import Annotated
 import typer
 
 from termseries.csv_source import fetch_csv_series
+from termseries.detect import (
+    supports_iterm2_inline_images,
+    supports_kitty_graphics,
+    supports_sixel,
+)
 from termseries.gaps import insert_gaps
 from termseries.ha_source import _detect_unit, fetch_ha_series
 from termseries.period import (
@@ -442,8 +447,11 @@ def info() -> None:
     rows: list[tuple[str, bool | str]] = [
         ("stdout is a TTY", sys.stdout.isatty()),
         ("Kitty protocol", _is_kitty()),
+        ("Kitty protocol detect", supports_kitty_graphics()),
         ("iTerm2 protocol", _is_iterm2()),
+        ("iTerm2 protocol detect", supports_iterm2_inline_images()),
         ("Sixel protocol", _is_sixel_terminal()),
+        ("Sixel protocol detect", supports_sixel()),
         ("SSH session", _is_ssh_session()),
         ("Docker container", _is_docker()),
         ("Terminal pixel width", str(_terminal_pixel_width() or "unknown")),

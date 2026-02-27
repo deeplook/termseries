@@ -18,6 +18,7 @@ from termseries.terminal import (
     _copy_to_clipboard,
     _detect_dark_terminal,
     _is_docker,
+    _is_ghostty,
     _is_iterm2,
     _is_kitty,
     _is_sixel_terminal,
@@ -337,7 +338,7 @@ def _output_png(
         elif protocol == "sixel":
             _print_sixel_png(png)
         else:  # auto: run detection chain
-            if _is_kitty():
+            if _is_kitty() or _is_ghostty():
                 _print_kitty_png(png)
             elif _is_iterm2():
                 _print_iterm2_png(png)
@@ -360,7 +361,7 @@ def _output_png(
     else:  # auto
         if protocol != "auto":
             # Explicit protocol: go inline only if auto-detection would have
-            if _is_kitty() or _is_iterm2() or _is_sixel_terminal():
+            if _is_kitty() or _is_ghostty() or _is_iterm2() or _is_sixel_terminal():
                 _emit_inline()
                 return
             # else fall through to auto-named file

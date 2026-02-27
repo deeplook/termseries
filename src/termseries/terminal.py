@@ -61,6 +61,11 @@ def _is_kitty() -> bool:
     )
 
 
+def _is_ghostty() -> bool:
+    """Return True if running inside the Ghostty terminal."""
+    return os.environ.get("TERM", "").startswith("xterm-ghostty")
+
+
 def _is_iterm2() -> bool:
     """Return True if the current process appears to be running under iTerm2."""
     return (
