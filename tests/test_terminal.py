@@ -353,10 +353,25 @@ class TestPrintKittyPng:
         """A small PNG fits in one chunk: first (and only) chunk has m=0."""
         _print_kitty_png(small_png)
         out = capsys.readouterr().out
-        assert out.startswith("\033_Ga=T,f=100,m=0;")
+        # First chunk header: a=T,f=100,c=<cols>,m=0
+        assert out.startswith("\033_Ga=T,f=100,c=")
+        assert ",m=0;" in out
         assert out.endswith("\033\\\n")
-        payload = out[len("\033_Ga=T,f=100,m=0;") : -len("\033\\\n")]
+        semi = out.index(";")
+        payload = out[semi + 1 : -len("\033\\\n")]
         assert base64.b64decode(payload) == small_png
+
+    def test_single_chunk_includes_cols(
+        self, small_png: bytes, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """First chunk must include c=<N> where N is a positive integer."""
+        _print_kitty_png(small_png)
+        out = capsys.readouterr().out
+        import re
+
+        match = re.search(r"c=(\d+)", out)
+        assert match is not None, "c= parameter missing from kitty sequence"
+        assert int(match.group(1)) > 0
 
     def test_multi_chunk(
         self, large_png: bytes, capsys: pytest.CaptureFixture[str]
@@ -371,7 +386,8 @@ class TestPrintKittyPng:
         assert len(chunks) >= 2, "Expected at least 2 chunks for a large PNG"
 
         first = chunks[0]
-        assert first.startswith("a=T,f=100,m=1;")
+        assert first.startswith("a=T,f=100,c=")
+        assert ",m=1;" in first
 
         for middle in chunks[1:-1]:
             assert middle.startswith("m=1;")

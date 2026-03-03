@@ -1,0 +1,10 @@
+cols: 100
+rows: 30
+type_delay: 0.04
+type_variance: 0.5
+pause_after_cmd: 2.0
+output: tests/manual/casts/test_iterm2_protocol.cast
+steps:
+  - marker: "iterm2-protocol-test"
+  - cmd: "echo 'Test: iTerm2 inline image protocol (OSC 1337)'"
+  - cmd: "termseries --protocol iterm2 --output inline yahoo A --period 7d"

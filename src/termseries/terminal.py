@@ -17,13 +17,16 @@ from dotenv import dotenv_values
 
 def _print_kitty_png(png_bytes: bytes) -> None:
     """Print a PNG inline using Kitty's Terminal Graphics Protocol."""
+    import shutil
+
+    cols = shutil.get_terminal_size().columns
     b64 = base64.b64encode(png_bytes).decode("ascii")
     first = True
     while b64:
         chunk, b64 = b64[:4096], b64[4096:]
         m = 1 if b64 else 0
         if first:
-            sys.stdout.write(f"\033_Ga=T,f=100,m={m};{chunk}\033\\")
+            sys.stdout.write(f"\033_Ga=T,f=100,c={cols},m={m};{chunk}\033\\")
             first = False
         else:
             sys.stdout.write(f"\033_Gm={m};{chunk}\033\\")

@@ -1,0 +1,10 @@
+cols: 100
+rows: 30
+type_delay: 0.04
+type_variance: 0.5
+pause_after_cmd: 2.0
+output: tests/manual/casts/test_kitty_protocol.cast
+steps:
+  - marker: "kitty-protocol-test"
+  - cmd: "echo 'Test: Kitty inline image protocol (APC)'"
+  - cmd: "termseries --protocol kitty --output inline yahoo A --period 7d"
