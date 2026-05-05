@@ -418,6 +418,50 @@ class TestValidators:
         assert "termseries" in result.output
 
 
+class TestPolymarketCommand:
+    def test_polymarket_command_wires_fetch_and_output(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The polymarket command passes Polymarket-specific options through."""
+        monkeypatch.chdir(tmp_path)
+        captured: dict[str, object] = {}
+
+        def mock_output(
+            png: object, names: object, ratio: object, period: object, **kwargs: object
+        ) -> None:
+            captured["names"] = names
+            captured.update(kwargs)
+
+        with (
+            patch(
+                "termseries.cli.fetch_polymarket_series", return_value=_FAKE_DATA
+            ) as fetch_mock,
+            patch("termseries.cli._render_png", return_value=_FAKE_PNG),
+            patch("termseries.cli._output_png", side_effect=mock_output),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "polymarket",
+                    "btc-150k",
+                    "--period",
+                    "7d",
+                    "--outcome",
+                    "no",
+                    "--interval",
+                    "1h",
+                    "--fidelity",
+                    "5",
+                ],
+            )
+
+        assert result.exit_code == 0
+        fetch_mock.assert_called_once_with(
+            ["btc-150k"], "7d", outcome="no", interval="1h", fidelity=5
+        )
+        assert captured["names"] == ["FAKE"]
+
+
 # ---------------------------------------------------------------------------
 # info command
 # ---------------------------------------------------------------------------

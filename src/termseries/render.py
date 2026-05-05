@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import math
 import sys
 from collections.abc import Callable, Sequence
@@ -32,6 +33,57 @@ from termseries.terminal import (
 from termseries.types import TimeSeries
 
 _Transform = Callable[[Sequence[Any], Sequence[float]], tuple[list[Any], list[float]]]
+
+
+def _display_series_name(name: str) -> str:
+    """Shorten long display names for titles and legends."""
+    raw = name.strip()
+    if not raw:
+        return raw
+
+    label = raw.replace("-", " ")
+    if len(label) > 42:
+        return f"{label[:39].rstrip()}..."
+    return label
+
+
+def _legend_layout(display_names: Sequence[str]) -> tuple[str, int, int]:
+    """Return ``(placement, cols, rows)`` for legend placement."""
+    if not display_names:
+        return ("best", 1, 1)
+    max_len = max(len(name) for name in display_names)
+    count = len(display_names)
+
+    if count == 1:
+        return ("inside-top-left", 1, 1)
+
+    if count <= 4 and max_len <= 24:
+        cols = min(4, max(1, count))
+        return ("best", cols, 1)
+
+    if count <= 8 and max_len <= 16:
+        cols = 1
+        rows = math.ceil(count / cols)
+        return ("inside-left", cols, rows)
+
+    cols = 2
+    rows = math.ceil(count / cols)
+    return ("outside", cols, rows)
+
+
+def _auto_output_filename(
+    series_names: Sequence[str], period: str, ratio: tuple[int, int]
+) -> str:
+    """Build a readable auto-output filename that stays within path limits."""
+    names = [n.strip().upper() for n in series_names if n.strip()]
+    names_part = "-".join(names[:6])
+    if len(names) > 6:
+        names_part += f"-plus{len(names) - 6}"
+    if len(names_part) > 120:
+        digest = hashlib.sha1(names_part.encode("utf-8")).hexdigest()[:10]
+        names_part = f"{names_part[:96].rstrip('-')}-h{digest}"
+    w, h = ratio
+    return f"termseries_{names_part}_{period}_{w}x{h}.png"
 
 
 def _transform_indexed(
@@ -153,6 +205,10 @@ def _render_png(
     names = list(series.keys())
     if not names:
         raise ValueError("No data series provided. Pass at least one series.")
+    display_names = {_name: _display_series_name(_name) for _name in names}
+    legend_placement, legend_cols, legend_rows = _legend_layout(
+        [display_names[name] for name in names]
+    )
 
     dark = _detect_dark_terminal(theme)
     base_style = "termseries.dark" if dark else "termseries.light"
@@ -167,6 +223,10 @@ def _render_png(
         ratio_w, ratio_h = ratio
         width_in = 12.0
         height_in = width_in * (ratio_h / ratio_w)
+    crowded_legend = legend_placement == "outside"
+    if legend_placement == "outside":
+        legend_cols = 2
+        height_in += 0.45 * legend_rows + 0.5
     if color_cycle:
         cmap = matplotlib.colormaps[color_cycle]
         plt.rcParams["axes.prop_cycle"] = plt.cycler(
@@ -174,7 +234,9 @@ def _render_png(
             if cmap.N <= 20
             else [cmap(x) for x in [i / 10 for i in range(10)]]
         )
-    fig, ax = plt.subplots(figsize=(width_in, height_in))
+    fig, ax = plt.subplots(
+        figsize=(width_in, height_in), constrained_layout=not crowded_legend
+    )
 
     _ds_map = {
         "step-pre": "steps-pre",
@@ -203,7 +265,7 @@ def _render_png(
         ax.plot(
             xs,
             ys,
-            label=f"{names[0]}/{names[1]}",
+            label=f"{display_names[names[0]]}/{display_names[names[1]]}",
             marker=marker,
             markersize=ms,
             drawstyle=ds,
@@ -218,7 +280,14 @@ def _render_png(
             n = len(xs)
             marker = "o" if n <= 100 else None
             ms = max(2, 8 - n // 15)
-            ax.plot(xs, ys, label=name, marker=marker, markersize=ms, drawstyle=ds)
+            ax.plot(
+                xs,
+                ys,
+                label=display_names[name],
+                marker=marker,
+                markersize=ms,
+                drawstyle=ds,
+            )
     if mode == "log":
         ax.set_yscale("log")
 
@@ -238,7 +307,10 @@ def _render_png(
         "delta": f"{interval_label} Delta",
     }
     prefix = title_labels.get(mode, "")
-    names_str = ", ".join(names)
+    if len(names) <= 3 and all(len(display_names[name]) <= 24 for name in names):
+        names_str = ", ".join(display_names[name] for name in names)
+    else:
+        names_str = f"{len(names)} series"
     if prefix:
         ax.set_title(f"{prefix} ({period_label}): {names_str}")
     else:
@@ -256,7 +328,40 @@ def _render_png(
         "delta": f"{interval_label} change ({value_unit})",
     }
     ax.set_ylabel(ylabel.get(mode, value_unit))
-    ax.legend(ncols=min(4, max(1, len(names))))
+    if legend_placement == "outside":
+        ax.legend(
+            ncols=legend_cols,
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.18),
+            fontsize=max(7, 10 - legend_rows // 2),
+            frameon=True,
+        )
+        fig.subplots_adjust(bottom=min(0.52, 0.16 + 0.08 * legend_rows))
+    elif legend_placement == "inside-top-left":
+        ax.legend(
+            ncols=legend_cols,
+            loc="upper left",
+            bbox_to_anchor=(0.02, 0.98),
+            fontsize=9,
+            frameon=True,
+            borderaxespad=0.0,
+        )
+    elif legend_placement == "inside-left":
+        ax.legend(
+            ncols=legend_cols,
+            loc="center left",
+            bbox_to_anchor=(0.02, 0.5),
+            fontsize=max(8, 10 - max(0, legend_rows - 4)),
+            frameon=True,
+            borderaxespad=0.0,
+        )
+    else:
+        ax.legend(
+            ncols=legend_cols,
+            loc="best",
+            fontsize=max(8, 10 - max(0, legend_rows - 1)),
+            frameon=True,
+        )
     fig.autofmt_xdate()
 
     buf = BytesIO()
@@ -372,12 +477,7 @@ def _output_png(
         print("No inline image protocol detected; saving plot to file.")
 
     # Auto-named file fallback
-    names = [n.strip().upper() for n in series_names if n.strip()]
-    names_part = "-".join(names[:6])
-    if len(names) > 6:
-        names_part += f"-plus{len(names) - 6}"
-    w, h = ratio
-    out = f"termseries_{names_part}_{period}_{w}x{h}.png"
+    out = _auto_output_filename(series_names, period, ratio)
     with open(out, "wb") as f:
         f.write(png)
     print(f"Wrote plot to {out}")

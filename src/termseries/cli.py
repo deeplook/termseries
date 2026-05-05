@@ -21,9 +21,11 @@ from termseries.ha_source import _detect_unit, fetch_ha_series
 from termseries.period import (
     TUI_PERIOD_CHOICES,
     parse_period,
+    polymarket_auto_interval,
     xlim_now,
     yahoo_auto_interval,
 )
+from termseries.polymarket import fetch_polymarket_series
 from termseries.render import _output_png, _render_png
 from termseries.terminal import (
     _VALID_PROTOCOLS,
@@ -42,6 +44,7 @@ from termseries.types import (
     ColorCycle,
     LineStyle,
     Mode,
+    PolymarketInterval,
     TimeSeries,
     YahooInterval,
 )
@@ -297,6 +300,98 @@ def yahoo(
     _output_png(
         png,
         tickers,
+        r,
+        period,
+        copy=opts["copy"],
+        output=opts["output"],
+        protocol=opts["protocol"],
+    )
+
+
+@app.command()  # type: ignore[misc]
+def polymarket(
+    ctx: typer.Context,
+    markets: Annotated[
+        list[str],
+        typer.Argument(
+            help="Polymarket market slugs (e.g. will-bitcoin-hit-150k-in-2026)"
+        ),
+    ],
+    period: Annotated[
+        str,
+        typer.Option(
+            help="Chart range (e.g. 7d, 2w, 3mo, max)",
+            callback=_validate_period,
+        ),
+    ] = "7d",
+    outcome: Annotated[
+        str,
+        typer.Option(
+            help='Outcome label to chart, usually "yes" or "no" for binary markets'
+        ),
+    ] = "yes",
+    interval: Annotated[
+        PolymarketInterval,
+        typer.Option(help="Aggregation interval (auto picks by period)"),
+    ] = PolymarketInterval.auto,
+    fidelity: Annotated[
+        int,
+        typer.Option(help="Data fidelity in minutes for the Polymarket history API"),
+    ] = 1,
+) -> None:
+    """Fetch and plot market price data from Polymarket."""
+    opts = ctx.obj
+    resolved = (
+        polymarket_auto_interval(period) if interval.value == "auto" else interval.value
+    )
+
+    if opts["interactive"]:
+        _run_interactive(
+            markets,
+            period_choices=TUI_PERIOD_CHOICES,
+            period=period,
+            ratio=opts["ratio"],
+            mode=opts["mode"],
+            colors=opts["colors"],
+            fetch_fn=partial(
+                fetch_polymarket_series,
+                outcome=outcome,
+                interval=interval.value,
+                fidelity=fidelity,
+            ),
+            style_override=opts["style"],
+            reload_interval=opts["reload"],
+            tz=opts["tz"],
+            line_style=opts["line_style"],
+            theme=opts["theme"],
+        )
+        raise typer.Exit()
+
+    data = fetch_polymarket_series(
+        markets,
+        period,
+        outcome=outcome,
+        interval=interval.value,
+        fidelity=fidelity,
+    )
+    data = _apply_gaps(data, opts["gaps"])
+    r = opts["ratio"] or (4, 1)
+    png = _render_png(
+        data,
+        r,
+        period,
+        color_cycle=opts["colors"],
+        mode=opts["mode"],
+        style_override=opts["style"],
+        tz=opts["tz"],
+        interval_label=resolved,
+        line_style=opts["line_style"],
+        theme=opts["theme"],
+    )
+    labels = list(data.keys())
+    _output_png(
+        png,
+        labels,
         r,
         period,
         copy=opts["copy"],

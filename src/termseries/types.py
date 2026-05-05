@@ -40,6 +40,17 @@ class YahooInterval(str, Enum):
     d1 = "1d"
 
 
+class PolymarketInterval(str, Enum):
+    auto = "auto"
+    max = "max"
+    all = "all"
+    m1 = "1m"
+    h1 = "1h"
+    h6 = "6h"
+    d1 = "1d"
+    w1 = "1w"
+
+
 class LineStyle(str, Enum):
     linear = "linear"
     step_pre = "step-pre"

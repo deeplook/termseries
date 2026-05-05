@@ -1,12 +1,15 @@
 """Tests for termseries.render functions."""
 
 import math
+import warnings
 from unittest.mock import patch
 
 import matplotlib.pyplot as plt
 import pytest
 
 from termseries.render import (
+    _display_series_name,
+    _legend_layout,
     _output_png,
     _render_png,
     _transform_cumulative,
@@ -27,6 +30,32 @@ PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 class TestRenderPng:
+    def test_display_series_name_truncates_long_label(self) -> None:
+        name = "This is a deliberately long display label that should be truncated"
+        assert _display_series_name(name).endswith("...")
+
+    def test_legend_layout_keeps_compact_multi_series_inside(self) -> None:
+        assert (
+            _legend_layout(
+                ["Alpha: Yes", "Beta: Yes", "Gamma: Yes", "Delta: Yes", "Epsilon: Yes"]
+            )[0]
+            == "inside-left"
+        )
+
+    def test_legend_layout_moves_long_labels_outside(self) -> None:
+        placement, _cols, _rows = _legend_layout(
+            ["This is a very long legend label", "Another very long legend label"] * 3
+        )
+        assert placement == "outside"
+
+    def test_legend_layout_keeps_single_series_inside(self) -> None:
+        assert (
+            _legend_layout(["A long but single generic prediction market label: Yes"])[
+                0
+            ]
+            == "inside-top-left"
+        )
+
     def test_returns_valid_png(self) -> None:
         series = {"A": make_series()}
         png = _render_png(series, (4, 1), "7d")
@@ -87,6 +116,30 @@ class TestRenderPng:
         series = {"X": make_series(base=10), "Y": make_series(base=200)}
         png = _render_png(series, (4, 1), "7d")
         assert png[:8] == PNG_SIGNATURE
+
+    def test_many_long_series_do_not_emit_layout_warning(self) -> None:
+        series = {
+            (
+                "candidate-alpha-with-a-very-long-generic-election-market-label:Yes"
+            ): make_series(base=10),
+            (
+                "candidate-beta-with-a-very-long-generic-election-market-label:Yes"
+            ): make_series(base=20),
+            (
+                "candidate-gamma-with-a-very-long-generic-election-market-label:Yes"
+            ): make_series(base=30),
+            (
+                "candidate-delta-with-a-very-long-generic-election-market-label:Yes"
+            ): make_series(base=40),
+            (
+                "candidate-epsilon-with-a-very-long-generic-election-market-label:Yes"
+            ): make_series(base=50),
+        }
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            png = _render_png(series, (4, 1), "30d")
+        assert png[:8] == PNG_SIGNATURE
+        assert not any("layout" in str(w.message).lower() for w in record)
 
     def test_custom_figsize(self) -> None:
         series = {"A": make_series()}
@@ -200,6 +253,28 @@ class TestOutputPng:
         _output_png(small_png, tickers, (4, 1), "7d")
         written = tmp_path / "termseries_A-B-C-D-E-F-plus2_7d_4x1.png"
         assert written.exists()
+
+    def test_long_series_names_filename_is_shortened(
+        self,
+        small_png: bytes,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: pytest.TempPathFactory,
+    ) -> None:
+        """Very long series names are shortened to avoid OS filename limits."""
+        monkeypatch.chdir(tmp_path)
+        names = [
+            "VERY-LONG-GENERIC-PREDICTION-MARKET-LABEL-FOR-CANDIDATE-ALPHA-WITH-EXTRA-DESCRIPTIVE-TEXT:YES",
+            "VERY-LONG-GENERIC-PREDICTION-MARKET-LABEL-FOR-CANDIDATE-BETA-WITH-EXTRA-DESCRIPTIVE-TEXT:YES",
+            "VERY-LONG-GENERIC-PREDICTION-MARKET-LABEL-FOR-CANDIDATE-GAMMA-WITH-EXTRA-DESCRIPTIVE-TEXT:YES",
+            "VERY-LONG-GENERIC-PREDICTION-MARKET-LABEL-FOR-CANDIDATE-DELTA-WITH-EXTRA-DESCRIPTIVE-TEXT:YES",
+            "VERY-LONG-GENERIC-PREDICTION-MARKET-LABEL-FOR-CANDIDATE-EPSILON-WITH-EXTRA-DESCRIPTIVE-TEXT:YES",
+            "VERY-LONG-GENERIC-PREDICTION-MARKET-LABEL-FOR-CANDIDATE-ZETA-WITH-EXTRA-DESCRIPTIVE-TEXT:YES",
+            "VERY-LONG-GENERIC-PREDICTION-MARKET-LABEL-FOR-CANDIDATE-ETA-WITH-EXTRA-DESCRIPTIVE-TEXT:YES",
+        ]
+        _output_png(small_png, names, (4, 1), "30d")
+        written = next(tmp_path.glob("termseries_*_30d_4x1.png"))
+        assert written.exists()
+        assert len(written.name) < 180
 
 
 # ===================================================================

@@ -1,4 +1,4 @@
-"""Unified free-form period parsing and Yahoo Finance mapping."""
+"""Unified free-form period parsing and source-specific interval mapping."""
 
 from __future__ import annotations
 
@@ -180,3 +180,35 @@ def yahoo_auto_interval(period: str) -> str:
     if delta <= timedelta(days=7):
         return "15m"
     return "1d"
+
+
+def polymarket_auto_interval(period: str) -> str:
+    """Pick a Polymarket aggregation interval based on period duration."""
+    delta = parse_period(period)
+    if delta is None:
+        return "max"
+    if delta <= timedelta(hours=6):
+        return "1m"
+    if delta <= timedelta(days=3):
+        return "1h"
+    if delta <= timedelta(days=30):
+        return "6h"
+    if delta <= timedelta(days=180):
+        return "1d"
+    return "1w"
+
+
+def polymarket_covering_range(period: str) -> str:
+    """Map any period to the smallest Polymarket-native window that covers it."""
+    delta = parse_period(period)
+    if delta is None:
+        return "max"
+    if delta <= timedelta(hours=1):
+        return "1h"
+    if delta <= timedelta(hours=6):
+        return "6h"
+    if delta <= timedelta(days=1):
+        return "1d"
+    if delta <= timedelta(weeks=1):
+        return "1w"
+    return "max"
