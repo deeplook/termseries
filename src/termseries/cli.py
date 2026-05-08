@@ -53,6 +53,15 @@ from termseries.yahoo import fetch_yahoo_series
 app = typer.Typer(
     help="Render time-series data as terminal plots.",
     context_settings={"help_option_names": ["-h", "--help"]},
+    epilog=(
+        "Examples:\n\n"
+        "  termseries yahoo TSLA AAPL MSFT\n"
+        "  termseries --mode indexed yahoo --period 1mo TSLA AAPL\n"
+        "  termseries --mode drawdown yahoo --period 1y TSLA AAPL\n"
+        "  termseries polymarket will-bitcoin-hit-150k-in-2026\n"
+        "  termseries csv data.csv --period 30d\n"
+        "  termseries ha sensor.temperature --period 7d\n"
+    ),
 )
 
 
@@ -128,7 +137,6 @@ def main(
         bool,
         typer.Option(
             "--version",
-            "-v",
             help="Show version and exit",
             callback=_version_callback,
             is_eager=True,
@@ -240,7 +248,15 @@ def main(
     ctx.obj["protocol"] = protocol
 
 
-@app.command()  # type: ignore[misc]
+@app.command(  # type: ignore[misc]
+    epilog=(
+        "Examples:\n\n"
+        "  termseries yahoo TSLA\n"
+        "  termseries yahoo TSLA AAPL MSFT --period 1mo\n"
+        "  termseries --mode indexed yahoo --period 1y TSLA AAPL\n"
+        "  termseries yahoo TSLA --interval 1d --period max\n"
+    )
+)
 def yahoo(
     ctx: typer.Context,
     tickers: Annotated[
@@ -282,7 +298,11 @@ def yahoo(
         )
         raise typer.Exit()
 
-    data = fetch_yahoo_series(tickers, period, interval=interval.value)
+    try:
+        data = fetch_yahoo_series(tickers, period, interval=interval.value)
+    except (RuntimeError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from None
     data = _apply_gaps(data, opts["gaps"])
     r = opts["ratio"] or (4, 1)
     png = _render_png(
@@ -308,7 +328,14 @@ def yahoo(
     )
 
 
-@app.command()  # type: ignore[misc]
+@app.command(  # type: ignore[misc]
+    epilog=(
+        "Examples:\n\n"
+        "  termseries polymarket will-bitcoin-hit-150k-in-2026\n"
+        "  termseries polymarket will-bitcoin-hit-150k-in-2026 --outcome no\n"
+        "  termseries polymarket will-bitcoin-hit-150k-in-2026 --period 30d\n"
+    )
+)
 def polymarket(
     ctx: typer.Context,
     markets: Annotated[
@@ -367,13 +394,17 @@ def polymarket(
         )
         raise typer.Exit()
 
-    data = fetch_polymarket_series(
-        markets,
-        period,
-        outcome=outcome,
-        interval=interval.value,
-        fidelity=fidelity,
-    )
+    try:
+        data = fetch_polymarket_series(
+            markets,
+            period,
+            outcome=outcome,
+            interval=interval.value,
+            fidelity=fidelity,
+        )
+    except (RuntimeError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from None
     data = _apply_gaps(data, opts["gaps"])
     r = opts["ratio"] or (4, 1)
     png = _render_png(
@@ -400,7 +431,15 @@ def polymarket(
     )
 
 
-@app.command(name="csv")  # type: ignore[misc]
+@app.command(  # type: ignore[misc]
+    name="csv",
+    epilog=(
+        "Examples:\n\n"
+        "  termseries csv data.csv\n"
+        "  termseries csv data.csv --period 30d --unit °C\n"
+        "  termseries csv temp.csv humidity.csv --period 7d\n"
+    ),
+)
 def csv_cmd(
     ctx: typer.Context,
     files: Annotated[
@@ -436,7 +475,11 @@ def csv_cmd(
         )
         raise typer.Exit()
 
-    data = fetch_csv_series(files, period)
+    try:
+        data = fetch_csv_series(files, period)
+    except (RuntimeError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from None
     data = _apply_gaps(data, opts["gaps"])
     r = opts["ratio"] or (4, 1)
     png = _render_png(
@@ -464,7 +507,14 @@ def csv_cmd(
     )
 
 
-@app.command()  # type: ignore[misc]
+@app.command(  # type: ignore[misc]
+    epilog=(
+        "Examples:\n\n"
+        "  termseries ha sensor.temperature\n"
+        "  termseries ha sensor.temperature sensor.humidity --period 30d\n"
+        "  termseries --mode absolute ha sensor.power --unit W\n"
+    )
+)
 def ha(
     ctx: typer.Context,
     entities: Annotated[
@@ -506,7 +556,11 @@ def ha(
         )
         raise typer.Exit()
 
-    data = fetch_ha_series(entities, period)
+    try:
+        data = fetch_ha_series(entities, period)
+    except (RuntimeError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from None
     data = _apply_gaps(data, opts["gaps"])
     r = opts["ratio"] or (4, 1)
     png = _render_png(

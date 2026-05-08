@@ -223,6 +223,10 @@ def _detect_dark_terminal(theme: str) -> bool:
     if theme == "light":
         return False
 
+    # NO_COLOR signals the user wants minimal color; treat as light theme
+    if "NO_COLOR" in os.environ:
+        return False
+
     # auto: run heuristics
     colorfgbg = os.environ.get("COLORFGBG")
     if colorfgbg:
