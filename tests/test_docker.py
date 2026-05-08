@@ -2,6 +2,10 @@
 
 import subprocess
 
+import pytest
+
+pytestmark = pytest.mark.docker
+
 
 def test_docker_build() -> None:
     """Verify Docker image builds successfully."""

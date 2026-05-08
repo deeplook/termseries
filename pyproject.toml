@@ -117,8 +117,9 @@ warn_unused_ignores = false
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -m 'not docker'"
 asyncio_mode = "auto"
+markers = ["docker: tests that require Docker and image pull access"]
 
 [tool.coverage.run]
 source = ["src"]

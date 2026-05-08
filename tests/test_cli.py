@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from click.testing import Result
 from typer.testing import CliRunner
 
 from termseries.cli import app
@@ -39,14 +40,12 @@ class TestThemeResolution:
             patch("termseries.cli.fetch_yahoo_series", return_value=_FAKE_DATA),
             patch("termseries.cli._render_png", mock_render),
             patch("termseries.cli._output_png"),
-            warnings.catch_warnings(record=True) as w,
         ):
-            warnings.simplefilter("always")
-            runner.invoke(app, ["yahoo", "FAKE"])
+            result = runner.invoke(app, ["yahoo", "FAKE"])
 
-        assert any(
-            "midnight" in str(x.message) for x in w
-        ), f"Expected warning about 'midnight', got: {[str(x.message) for x in w]}"
+        assert (
+            "midnight" in result.output
+        ), f"Expected warning about 'midnight' in output, got: {result.output!r}"
         assert captured.get("theme") == "auto"
 
     def test_cli_flag_overrides_config_file(
@@ -115,7 +114,7 @@ def _run_yahoo_with_output_capture(
     cli_args: list[str],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[object, dict[str, object]]:
+) -> tuple[Result, dict[str, object]]:
     """Run 'termseries yahoo FAKE' with given args; returns (result, captured)."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -385,13 +384,11 @@ class TestOutputProtocolConfigFile:
         """Invalid protocol in termseries.env emits a warning and resolves to 'auto'."""
         (tmp_path / ".termseries.env").write_text("PROTOCOL=xterm\n")
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            _, captured = _run_yahoo_with_output_capture(
-                ["yahoo", "FAKE"], tmp_path, monkeypatch
-            )
+        result, captured = _run_yahoo_with_output_capture(
+            ["yahoo", "FAKE"], tmp_path, monkeypatch
+        )
 
-        assert any("xterm" in str(x.message) for x in w)
+        assert "xterm" in result.output
         assert captured.get("protocol") == "auto"
 
 
