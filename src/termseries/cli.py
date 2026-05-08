@@ -195,8 +195,6 @@ def main(
         ),
     ] = None,
 ) -> None:
-    import warnings
-
     ctx.ensure_object(dict)
     effective_ratio = ("fit" if interactive else "4:1") if ratio is None else ratio
     ctx.obj["ratio"] = (
@@ -220,9 +218,9 @@ def main(
         cfg = _load_config()
         raw = cfg.get("theme", "auto")
         if raw not in _VALID_THEMES:
-            warnings.warn(
-                f"Invalid theme {raw!r} in termseries.env, using 'auto'",
-                stacklevel=2,
+            typer.echo(
+                f"Warning: invalid theme {raw!r} in termseries.env, using 'auto'",
+                err=True,
             )
             raw = "auto"
         theme = raw
@@ -239,9 +237,10 @@ def main(
             cfg = _load_config()
         raw_protocol = cfg.get("protocol", "auto")
         if raw_protocol not in _VALID_PROTOCOLS:
-            warnings.warn(
-                f"Invalid protocol {raw_protocol!r} in termseries.env, using 'auto'",
-                stacklevel=2,
+            typer.echo(
+                f"Warning: invalid protocol {raw_protocol!r} in termseries.env,"
+                " using 'auto'",
+                err=True,
             )
             raw_protocol = "auto"
         protocol = raw_protocol
@@ -536,7 +535,6 @@ def ha(
     Requires HASS_URL and HASS_TOKEN environment variables.
     """
     opts = ctx.obj
-    resolved_unit = unit if unit is not None else _detect_unit(entities[0])
 
     if opts["interactive"]:
         _run_interactive(
@@ -547,7 +545,7 @@ def ha(
             mode=opts["mode"],
             colors=opts["colors"],
             fetch_fn=fetch_ha_series,
-            value_unit=resolved_unit,
+            value_unit=unit if unit is not None else "value",
             style_override=opts["style"],
             reload_interval=opts["reload"],
             tz=opts["tz"],
@@ -557,6 +555,7 @@ def ha(
         raise typer.Exit()
 
     try:
+        resolved_unit = unit if unit is not None else _detect_unit(entities[0])
         data = fetch_ha_series(entities, period)
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
