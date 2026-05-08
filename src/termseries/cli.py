@@ -122,6 +122,14 @@ def _validate_gaps(value: str) -> str:
     return value
 
 
+def _debug_echo(msg: str) -> None:
+    """Print a debug line to stderr when the DEBUG env var is set."""
+    import os
+
+    if os.environ.get("DEBUG"):
+        typer.echo(f"[debug] {msg}", err=True)
+
+
 def _version_callback(value: bool) -> None:
     if value:
         from importlib.metadata import version
@@ -246,6 +254,9 @@ def main(
         protocol = raw_protocol
     ctx.obj["protocol"] = protocol
 
+    _debug_echo(f"theme={theme} output={output} protocol={protocol}")
+    _debug_echo(f"mode={ctx.obj['mode']} ratio={ctx.obj['ratio']} tz={ctx.obj['tz']}")
+
 
 @app.command(  # type: ignore[misc]
     epilog=(
@@ -297,6 +308,8 @@ def yahoo(
         )
         raise typer.Exit()
 
+    _debug_echo(f"yahoo: period={period} interval={interval.value} resolved={resolved}")
+    typer.echo(f"Fetching {', '.join(tickers)} from Yahoo Finance…", err=True)
     try:
         data = fetch_yahoo_series(tickers, period, interval=interval.value)
     except (RuntimeError, ValueError) as exc:
@@ -393,6 +406,10 @@ def polymarket(
         )
         raise typer.Exit()
 
+    _debug_echo(
+        f"polymarket: period={period} interval={interval.value} resolved={resolved}"
+    )
+    typer.echo(f"Fetching {', '.join(markets)} from Polymarket…", err=True)
     try:
         data = fetch_polymarket_series(
             markets,
@@ -474,6 +491,7 @@ def csv_cmd(
         )
         raise typer.Exit()
 
+    typer.echo(f"Reading {', '.join(files)}…", err=True)
     try:
         data = fetch_csv_series(files, period)
     except (RuntimeError, ValueError) as exc:
@@ -554,6 +572,7 @@ def ha(
         )
         raise typer.Exit()
 
+    typer.echo(f"Fetching {', '.join(entities)} from Home Assistant…", err=True)
     try:
         resolved_unit = unit if unit is not None else _detect_unit(entities[0])
         data = fetch_ha_series(entities, period)
