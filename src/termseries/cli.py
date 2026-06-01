@@ -52,6 +52,7 @@ from termseries.yahoo import fetch_yahoo_series
 
 app = typer.Typer(
     help="Render time-series data as terminal plots.",
+    invoke_without_command=True,
     context_settings={"help_option_names": ["-h", "--help"]},
     epilog=(
         "Examples:\n\n"
@@ -256,6 +257,10 @@ def main(
 
     _debug_echo(f"theme={theme} output={output} protocol={protocol}")
     _debug_echo(f"mode={ctx.obj['mode']} ratio={ctx.obj['ratio']} tz={ctx.obj['tz']}")
+
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
 
 
 @app.command(  # type: ignore[misc]
