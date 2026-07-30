@@ -22,6 +22,10 @@ from tests.conftest import make_series
 
 _PERIOD_CHOICES = ["7d", "1mo", "3mo", "1y"]
 
+# Mirrors the closure-local sentinel in termseries.tui that marks the
+# "custom..." period option (it is not importable, so keep this in sync).
+_CUSTOM = "__custom__"
+
 
 def _make_png(width: int = 4, height: int = 3) -> bytes:
     """Create a minimal valid PNG via Pillow."""
@@ -226,3 +230,96 @@ class TestReloadToggle:
             await pilot.press("ctrl+r")
             await pilot.press("ctrl+r")
             assert pilot.app._reload_timer is None
+
+
+# ---------------------------------------------------------------------------
+# Period dropdown and custom-period entry
+# ---------------------------------------------------------------------------
+
+
+def _tracking_app(calls: list[str], **kwargs: Any) -> Any:
+    """Build an app whose fetch records the period it was called with."""
+
+    def tracking_fetch(cols: list[str], period: str) -> dict:  # type: ignore[type-arg]
+        calls.append(period)
+        return {c: make_series() for c in cols}
+
+    return _make_app(fetch_fn=tracking_fetch, **kwargs)
+
+
+class TestPeriodSelect:
+    async def test_selecting_period_triggers_fetch_with_new_period(self) -> None:
+        """Choosing a concrete period from the dropdown re-fetches with it."""
+        calls: list[str] = []
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _tracking_app(calls).run_test() as pilot:
+                await pilot.pause()
+                pilot.app.query(Select)[0].value = "1mo"
+                await pilot.pause()
+        assert "1mo" in calls
+
+    async def test_custom_option_reveals_custom_input(self) -> None:
+        """Picking the 'custom...' sentinel reveals the free-form period input."""
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app().run_test() as pilot:
+                await pilot.pause()
+                pilot.app.query(Select)[0].value = _CUSTOM
+                await pilot.pause()
+                assert pilot.app.query_one("#custom-period", Input).display is True
+
+    async def test_valid_custom_period_is_added_and_fetched(self) -> None:
+        """A valid custom period is accepted, added to the dropdown, and fetched."""
+        calls: list[str] = []
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _tracking_app(calls).run_test() as pilot:
+                await pilot.pause()
+                pilot.app.query(Select)[0].value = _CUSTOM
+                await pilot.pause()
+                custom = pilot.app.query_one("#custom-period", Input)
+                custom.focus()
+                custom.value = "14d"
+                await pilot.press("enter")
+                await pilot.pause()
+                option_values = {v for _, v in pilot.app.query(Select)[0]._options}
+        assert "14d" in calls
+        assert "14d" in option_values
+
+    async def test_invalid_custom_period_warns_and_reverts(self) -> None:
+        """An unparseable custom period is rejected and never fetched."""
+        calls: list[str] = []
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _tracking_app(calls).run_test() as pilot:
+                await pilot.pause()
+                pilot.app.query(Select)[0].value = _CUSTOM
+                await pilot.pause()
+                custom = pilot.app.query_one("#custom-period", Input)
+                custom.focus()
+                custom.value = "not-a-period"
+                await pilot.press("enter")
+                await pilot.pause()
+                assert pilot.app.is_running
+                assert custom.display is False
+        assert "not-a-period" not in calls
+
+    async def test_escape_cancels_custom_input(self) -> None:
+        """Escape while editing a custom period hides the input without fetching."""
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app().run_test() as pilot:
+                await pilot.pause()
+                pilot.app.query(Select)[0].value = _CUSTOM
+                await pilot.pause()
+                pilot.app.query_one("#custom-period", Input).focus()
+                await pilot.press("escape")
+                await pilot.pause()
+                assert pilot.app.query_one("#custom-period", Input).display is False
+
+
+class TestResize:
+    async def test_resize_schedules_debounced_rerender(self) -> None:
+        """A resize after data has loaded arms the debounce timer."""
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app().run_test() as pilot:
+                await pilot.pause()
+                if pilot.app._last_data is not None:
+                    pilot.app.on_resize(None)  # event fields are unused
+                    assert pilot.app._resize_timer is not None

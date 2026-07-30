@@ -129,6 +129,9 @@ source = ["src"]
 branch = true
 
 [tool.coverage.report]
+# Lock in the current coverage baseline (~83%) with a small buffer so routine
+# fluctuation doesn't fail CI but a real regression does. Raise as coverage grows.
+fail_under = 80
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",

@@ -460,6 +460,140 @@ class TestPolymarketCommand:
 
 
 # ---------------------------------------------------------------------------
+# csv and ha commands
+# ---------------------------------------------------------------------------
+
+
+class TestCsvCommand:
+    def test_csv_command_wires_fetch_and_output(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The csv command reads files and derives labels from their stems."""
+        monkeypatch.chdir(tmp_path)
+        captured: dict[str, object] = {}
+
+        def mock_output(
+            png: object, names: object, ratio: object, period: object, **kwargs: object
+        ) -> None:
+            captured["names"] = names
+
+        with (
+            patch(
+                "termseries.cli.fetch_csv_series", return_value=_FAKE_DATA
+            ) as fetch_mock,
+            patch("termseries.cli._render_png", return_value=_FAKE_PNG),
+            patch("termseries.cli._output_png", side_effect=mock_output),
+        ):
+            result = runner.invoke(app, ["csv", "temp.csv", "--period", "7d"])
+
+        assert result.exit_code == 0
+        fetch_mock.assert_called_once_with(["temp.csv"], "7d")
+        # Labels are the file stems, not the raw paths.
+        assert captured["names"] == ["temp"]
+
+
+class TestHaCommand:
+    def test_ha_command_wires_fetch_and_autodetects_unit(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The ha command auto-detects the unit when --unit is omitted."""
+        monkeypatch.chdir(tmp_path)
+        captured: dict[str, object] = {}
+
+        def mock_render(*args: object, **kwargs: object) -> bytes:
+            captured["value_unit"] = str(kwargs.get("value_unit"))
+            return _FAKE_PNG
+
+        with (
+            patch(
+                "termseries.cli.fetch_ha_series", return_value=_FAKE_DATA
+            ) as fetch_mock,
+            patch("termseries.cli._detect_unit", return_value="°C") as detect_mock,
+            patch("termseries.cli._render_png", mock_render),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(app, ["ha", "sensor.temperature", "--period", "30d"])
+
+        assert result.exit_code == 0
+        fetch_mock.assert_called_once_with(["sensor.temperature"], "30d")
+        detect_mock.assert_called_once_with("sensor.temperature")
+        assert captured["value_unit"] == "°C"
+
+
+# ---------------------------------------------------------------------------
+# error propagation and interactive mode (shared across data commands)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "argv,fetch_target",
+    [
+        (["yahoo", "FAKE"], "fetch_yahoo_series"),
+        (["polymarket", "some-market"], "fetch_polymarket_series"),
+        (["csv", "data.csv"], "fetch_csv_series"),
+        (["ha", "sensor.x"], "fetch_ha_series"),
+    ],
+)
+class TestDataCommandBehaviors:
+    def test_fetch_error_exits_nonzero_with_message(
+        self,
+        argv: list[str],
+        fetch_target: str,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A fetch failure is reported and exits 1 for every data command."""
+        monkeypatch.chdir(tmp_path)
+        with (
+            patch(
+                f"termseries.cli.{fetch_target}",
+                side_effect=RuntimeError("boom"),
+            ),
+            # ha resolves the unit before fetching; keep it off the network.
+            patch("termseries.cli._detect_unit", return_value="value"),
+            patch("termseries.cli._render_png", return_value=_FAKE_PNG),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(app, argv)
+        assert result.exit_code == 1
+        assert "Error: boom" in result.output
+
+    def test_interactive_flag_launches_tui(
+        self,
+        argv: list[str],
+        fetch_target: str,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """`-i` routes every data command to the TUI instead of rendering once."""
+        monkeypatch.chdir(tmp_path)
+        with (
+            patch("termseries.cli._run_interactive") as run_tui,
+            patch(f"termseries.cli.{fetch_target}", return_value=_FAKE_DATA),
+            patch("termseries.cli._detect_unit", return_value="value"),
+            patch("termseries.cli._render_png", return_value=_FAKE_PNG),
+            patch("termseries.cli._output_png") as output,
+        ):
+            result = runner.invoke(app, ["-i", *argv])
+        assert result.exit_code == 0
+        run_tui.assert_called_once()
+        # Interactive mode hands off to the TUI rather than the one-shot renderer.
+        output.assert_not_called()
+
+
+class TestDemoCommand:
+    def test_demo_runs_three_subprocesses(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The demo command shells out to three example invocations."""
+        with patch("termseries.cli.subprocess.run") as run_mock:
+            result = runner.invoke(app, ["demo"])
+        assert result.exit_code == 0
+        assert run_mock.call_count == 3
+        assert "Demo 1/3" in result.output
+
+
+# ---------------------------------------------------------------------------
 # info command
 # ---------------------------------------------------------------------------
 
