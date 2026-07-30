@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 import matplotlib
 import matplotlib.pyplot as plt
+from cycler import cycler
 
 from termseries.terminal import (
     _copy_to_clipboard,
@@ -229,7 +230,7 @@ def _render_png(
         height_in += 0.45 * legend_rows + 0.5
     if color_cycle:
         cmap = matplotlib.colormaps[color_cycle]
-        plt.rcParams["axes.prop_cycle"] = plt.cycler(
+        plt.rcParams["axes.prop_cycle"] = cycler(
             color=[cmap(i) for i in range(cmap.N)]
             if cmap.N <= 20
             else [cmap(x) for x in [i / 10 for i in range(10)]]
@@ -263,7 +264,9 @@ def _render_png(
         marker = "o" if n <= 100 else None
         ms = max(2, 8 - n // 15)
         ax.plot(
-            xs,
+            # matplotlib accepts date/datetime x-values at runtime, but its stubs
+            # only type the numeric/array overloads.
+            xs,  # type: ignore[arg-type]
             ys,
             label=f"{display_names[names[0]]}/{display_names[names[1]]}",
             marker=marker,
@@ -281,7 +284,9 @@ def _render_png(
             marker = "o" if n <= 100 else None
             ms = max(2, 8 - n // 15)
             ax.plot(
-                xs,
+                # See the note above: date/datetime x-values are runtime-valid but
+                # untyped in matplotlib's stubs.
+                xs,  # type: ignore[arg-type]
                 ys,
                 label=display_names[name],
                 marker=marker,
@@ -293,7 +298,8 @@ def _render_png(
 
     if xlim is not None:
         left, right = xlim
-        ax.set_xlim(left.astimezone(target_tz), right.astimezone(target_tz))
+        # datetime bounds are runtime-valid but untyped in matplotlib's set_xlim stub.
+        ax.set_xlim(left.astimezone(target_tz), right.astimezone(target_tz))  # type: ignore[arg-type]
 
     is_stock = value_unit == "USD"
     title_labels = {

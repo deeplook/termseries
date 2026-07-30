@@ -36,12 +36,11 @@ def _print_kitty_png(png_bytes: bytes) -> None:
 def _print_sixel_png(png_bytes: bytes) -> None:
     """Print a PNG inline as Sixel graphics."""
     from PIL import Image as PILImage
-    from textual_image.renderable.sixel import (
-        image_to_sixels,
-    )
+    from textual_image.renderable import sixel
 
     img = PILImage.open(BytesIO(png_bytes))
-    sys.stdout.write(image_to_sixels(img))
+    # image_to_sixels works at runtime but is not an explicitly exported attribute.
+    sys.stdout.write(sixel.image_to_sixels(img))  # type: ignore[attr-defined]
     sys.stdout.write("\n")
 
 

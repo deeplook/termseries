@@ -118,7 +118,7 @@ def _validate_gaps(value: str) -> str:
             msg = "Invalid gaps value. Use 'connect', 'show', or a duration."
             raise typer.BadParameter(msg)
     except ValueError as exc:
-        msg = f"Invalid gaps value {value!r}. " "Use 'connect', 'show', or a duration."
+        msg = f"Invalid gaps value {value!r}. Use 'connect', 'show', or a duration."
         raise typer.BadParameter(msg) from exc
     return value
 

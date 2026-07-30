@@ -43,9 +43,9 @@ class TestThemeResolution:
         ):
             result = runner.invoke(app, ["yahoo", "FAKE"])
 
-        assert (
-            "midnight" in result.output
-        ), f"Expected warning about 'midnight' in output, got: {result.output!r}"
+        assert "midnight" in result.output, (
+            f"Expected warning about 'midnight' in output, got: {result.output!r}"
+        )
         assert captured.get("theme") == "auto"
 
     def test_cli_flag_overrides_config_file(

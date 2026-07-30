@@ -547,7 +547,7 @@ def _build_app(
                     (value, value),
                     ("custom...", _CUSTOM),
                 ]
-                period_select.set_options(new_options)
+                period_select.set_options(new_options)  # type: ignore[arg-type]
             self._reverting = True
             period_select.value = value
             self._last_period_value = value

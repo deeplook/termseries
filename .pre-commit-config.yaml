@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -9,15 +9,26 @@ repos:
       - id: check-added-large-files
       - id: check-merge-conflict
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.0
+  # Local hooks call the project's pinned ruff/mypy via uv, so the commit-time
+  # checks match CI exactly (no bundled-tool version drift, and mypy sees the
+  # project's real dependencies rather than an isolated stub-less venv).
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix]
+        name: ruff (lint, auto-fix)
+        entry: uv run ruff check --fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
       - id: ruff-format
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
-    hooks:
+        name: ruff (format)
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
       - id: mypy
-        additional_dependencies: [types-requests>=2.31]
+        name: mypy
+        entry: uv run mypy src
+        language: system
+        pass_filenames: false
+        types: [python]

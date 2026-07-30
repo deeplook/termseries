@@ -107,10 +107,13 @@ warn_return_any = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-# tui.py uses # type: ignore comments that are only active in some environments
-# (e.g. when textual stubs are absent in the pre-commit hook's isolated venv).
-# Disabling warn_unused_ignores here avoids false "unused ignore" warnings.
-module = "termseries.tui"
+# cli.py and tui.py carry # type: ignore comments that are only active in some
+# environments: cli.py's `@app.command()` typer decorators report untyped-decorator
+# (misc) errors only when typer's inline types aren't visible, and tui.py's ignores
+# depend on whether textual stubs are present (e.g. in the pre-commit hook's isolated
+# venv). Disabling warn_unused_ignores here avoids false "unused ignore" warnings while
+# keeping the ignores in place for the environments that need them.
+module = ["termseries.cli", "termseries.tui"]
 warn_unused_ignores = false
 
 [tool.pytest.ini_options]
