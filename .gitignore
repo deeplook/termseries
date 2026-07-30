@@ -21,6 +21,9 @@ ENV/
 htmlcov/
 coverage.xml
 
+# OpenSpec working files (kept locally, not tracked)
+openspec/
+
 # IDE
 .idea/
 .vscode/
