@@ -130,6 +130,16 @@ class TestReadCsv:
         with pytest.raises(RuntimeError, match="bad timestamp"):
             _read_csv(str(f))
 
+    def test_corrupt_first_row_raises_not_silently_skipped(
+        self, tmp_path: Path
+    ) -> None:
+        """A bad-timestamp-but-valid-value first row is corrupt data, not a
+        header, and should raise rather than being silently dropped."""
+        f = tmp_path / "corrupt_first.csv"
+        f.write_text("garbage,100\n2024-01-02,20.0\n")
+        with pytest.raises(RuntimeError, match="bad timestamp"):
+            _read_csv(str(f))
+
 
 # ===================================================================
 # _filter_last

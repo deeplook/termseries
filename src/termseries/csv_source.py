@@ -70,11 +70,23 @@ def _read_csv(path: str) -> TimeSeries:
 
             ts_raw, val_raw = row[0], row[1]
 
-            # Auto-detect header: try parsing the first non-blank row
+            # Auto-detect header: only treat the first non-blank row as a
+            # header if *neither* column looks like real data. A row with a
+            # bad timestamp but a valid numeric value is more likely a
+            # corrupt data row than a header, so let it fall through to the
+            # normal parsing below (and raise a clear error).
             if not header_skipped and not rows:
+                ts_ok = True
                 try:
                     _parse_timestamp(ts_raw)
                 except (ValueError, OSError):
+                    ts_ok = False
+                val_ok = True
+                try:
+                    float(val_raw)
+                except ValueError:
+                    val_ok = False
+                if not ts_ok and not val_ok:
                     header_skipped = True
                     continue
 
