@@ -302,6 +302,20 @@ class TestParseRatio:
         with pytest.raises(typer.BadParameter):
             _parse_ratio("a:b")
 
+    def test_extreme_ratio_rejected(self) -> None:
+        """A degenerate ratio (e.g. a typo'd extra digit) must be rejected
+        before it can crash matplotlib/Pillow with a near-zero-size figure."""
+        with pytest.raises(typer.BadParameter, match="too extreme"):
+            _parse_ratio("99999:1")
+
+    def test_ratio_at_the_boundary_is_accepted(self) -> None:
+        assert _parse_ratio("100:1") == (100, 1)
+        assert _parse_ratio("1:100") == (1, 100)
+
+    def test_ratio_just_over_the_boundary_rejected(self) -> None:
+        with pytest.raises(typer.BadParameter, match="too extreme"):
+            _parse_ratio("101:1")
+
 
 # ===================================================================
 # _png_dimensions

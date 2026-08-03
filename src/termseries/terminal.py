@@ -188,6 +188,11 @@ def _parse_ratio(value: str) -> tuple[int, int]:
         raise typer.BadParameter('ratio must use integers like "4:1"') from e
     if w <= 0 or h <= 0:
         raise typer.BadParameter("ratio components must be positive")
+    if max(w, h) / min(w, h) > 100:
+        raise typer.BadParameter(
+            "ratio is too extreme (max 100:1) -- it would degenerate the "
+            "figure to a near-zero-height/width image"
+        )
     return w, h
 
 
