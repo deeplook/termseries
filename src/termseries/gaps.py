@@ -38,9 +38,13 @@ def insert_gaps(
         (series[i + 1][0] - series[i][0]).total_seconds()
         for i in range(len(series) - 1)
     ]
-    med = median(intervals)
-    if med <= 0:
+    # Zero-length intervals (duplicate/repeated timestamps) aren't a
+    # meaningful sampling cadence; exclude them so they don't collapse the
+    # median and mask a genuine gap elsewhere in the same series.
+    positive_intervals = [i for i in intervals if i > 0]
+    if not positive_intervals:
         return list(series)
+    med = median(positive_intervals)
 
     gap_threshold_secs = threshold * med
 

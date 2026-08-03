@@ -75,6 +75,13 @@ class TestInsertGaps:
         assert len(result) == 4
         assert _nan_indices(result) == []
 
+    def test_duplicate_timestamps_do_not_mask_a_real_gap(self) -> None:
+        """Zero-length intervals (duplicate timestamps) shouldn't collapse the
+        median to 0 and hide a genuine large gap elsewhere in the series."""
+        series = _ts([0, 0, 0, 0, 0, 0, 100, 101])
+        result = insert_gaps(series)
+        assert len(_nan_indices(result)) == 1
+
     def test_two_points_unchanged(self) -> None:
         series = _ts([0, 100])
         result = insert_gaps(series)
