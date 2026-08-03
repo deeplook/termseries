@@ -22,6 +22,7 @@ from termseries.period import (
     TUI_PERIOD_CHOICES,
     parse_period,
     polymarket_auto_interval,
+    resolve_tz,
     xlim_now,
     yahoo_auto_interval,
 )
@@ -80,6 +81,23 @@ def _validate_period(value: str) -> str:
         parse_period(value)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
+    return value
+
+
+def _validate_tz(value: str) -> str:
+    """Typer callback that validates the --tz option.
+
+    Catches ``ValueError`` (malformed key) and ``LookupError`` (unknown IANA
+    zone, e.g. ``ZoneInfoNotFoundError``) so a bad --tz value fails cleanly
+    at option-parsing time instead of crashing deep inside rendering.
+    """
+    try:
+        resolve_tz(value)
+    except (ValueError, LookupError) as exc:
+        raise typer.BadParameter(
+            f'{value!r} is not "UTC", "local", or a valid IANA zone name '
+            "(e.g. Europe/Berlin)."
+        ) from exc
     return value
 
 
@@ -170,7 +188,11 @@ def main(
         int, typer.Option(help="Auto-reload interval in seconds (0=off, TUI only)")
     ] = 0,
     tz: Annotated[
-        str, typer.Option(help='Timezone for x-axis: "UTC", "local", or IANA name')
+        str,
+        typer.Option(
+            help='Timezone for x-axis: "UTC", "local", or IANA name',
+            callback=_validate_tz,
+        ),
     ] = "UTC",
     line_style: Annotated[
         LineStyle, typer.Option(help="Line connection style")
@@ -321,23 +343,23 @@ def yahoo(
         data = fetch_yahoo_series(
             tickers, period, interval=interval.value, tz=opts["tz"]
         )
+        data = _apply_gaps(data, opts["gaps"])
+        r = opts["ratio"] or (4, 1)
+        png = _render_png(
+            data,
+            r,
+            period,
+            color_cycle=opts["colors"],
+            mode=opts["mode"],
+            style_override=opts["style"],
+            tz=opts["tz"],
+            interval_label=interval_label,
+            line_style=opts["line_style"],
+            theme=opts["theme"],
+        )
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
-    data = _apply_gaps(data, opts["gaps"])
-    r = opts["ratio"] or (4, 1)
-    png = _render_png(
-        data,
-        r,
-        period,
-        color_cycle=opts["colors"],
-        mode=opts["mode"],
-        style_override=opts["style"],
-        tz=opts["tz"],
-        interval_label=interval_label,
-        line_style=opts["line_style"],
-        theme=opts["theme"],
-    )
     _output_png(
         png,
         list(data.keys()),
@@ -429,23 +451,23 @@ def polymarket(
             fidelity=fidelity,
             tz=opts["tz"],
         )
+        data = _apply_gaps(data, opts["gaps"])
+        r = opts["ratio"] or (4, 1)
+        png = _render_png(
+            data,
+            r,
+            period,
+            color_cycle=opts["colors"],
+            mode=opts["mode"],
+            style_override=opts["style"],
+            tz=opts["tz"],
+            interval_label=resolved,
+            line_style=opts["line_style"],
+            theme=opts["theme"],
+        )
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
-    data = _apply_gaps(data, opts["gaps"])
-    r = opts["ratio"] or (4, 1)
-    png = _render_png(
-        data,
-        r,
-        period,
-        color_cycle=opts["colors"],
-        mode=opts["mode"],
-        style_override=opts["style"],
-        tz=opts["tz"],
-        interval_label=resolved,
-        line_style=opts["line_style"],
-        theme=opts["theme"],
-    )
     labels = list(data.keys())
     _output_png(
         png,
@@ -505,24 +527,24 @@ def csv_cmd(
     typer.echo(f"Reading {', '.join(files)}…", err=True)
     try:
         data = fetch_csv_series(files, period, tz=opts["tz"])
+        data = _apply_gaps(data, opts["gaps"])
+        r = opts["ratio"] or (4, 1)
+        png = _render_png(
+            data,
+            r,
+            period,
+            color_cycle=opts["colors"],
+            mode=opts["mode"],
+            value_unit=unit,
+            style_override=opts["style"],
+            tz=opts["tz"],
+            line_style=opts["line_style"],
+            xlim=xlim_now(period, data, tz=resolve_tz(opts["tz"])),
+            theme=opts["theme"],
+        )
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
-    data = _apply_gaps(data, opts["gaps"])
-    r = opts["ratio"] or (4, 1)
-    png = _render_png(
-        data,
-        r,
-        period,
-        color_cycle=opts["colors"],
-        mode=opts["mode"],
-        value_unit=unit,
-        style_override=opts["style"],
-        tz=opts["tz"],
-        line_style=opts["line_style"],
-        xlim=xlim_now(period, data),
-        theme=opts["theme"],
-    )
     labels = [Path(f).stem for f in files]
     _output_png(
         png,
@@ -598,23 +620,23 @@ def hass(
         )
         resolved_unit = unit if unit is not None else _detect_unit(resolved_entities[0])
         data = fetch_hass_series(resolved_entities, period, tz=opts["tz"])
+        data = _apply_gaps(data, opts["gaps"])
+        r = opts["ratio"] or (4, 1)
+        png = _render_png(
+            data,
+            r,
+            period,
+            color_cycle=opts["colors"],
+            mode=opts["mode"],
+            value_unit=resolved_unit,
+            style_override=opts["style"],
+            tz=opts["tz"],
+            line_style=opts["line_style"],
+            theme=opts["theme"],
+        )
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
-    data = _apply_gaps(data, opts["gaps"])
-    r = opts["ratio"] or (4, 1)
-    png = _render_png(
-        data,
-        r,
-        period,
-        color_cycle=opts["colors"],
-        mode=opts["mode"],
-        value_unit=resolved_unit,
-        style_override=opts["style"],
-        tz=opts["tz"],
-        line_style=opts["line_style"],
-        theme=opts["theme"],
-    )
     labels = list(data.keys())
     _output_png(
         png,
