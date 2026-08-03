@@ -334,11 +334,12 @@ def _render_png(
         "delta": f"{interval_label} change ({value_unit})",
     }
     ax.set_ylabel(ylabel.get(mode, value_unit))
+    legend: Any = None
     if legend_placement == "outside":
-        ax.legend(
+        legend = ax.legend(
             ncols=legend_cols,
             loc="upper center",
-            bbox_to_anchor=(0.5, -0.18),
+            bbox_to_anchor=(0.5, -0.32),
             fontsize=max(7, 10 - legend_rows // 2),
             frameon=True,
         )
@@ -379,7 +380,18 @@ def _render_png(
         _save_dpi = px_width / width_in if px_width else "figure"
     else:
         _save_dpi = "figure"
-    fig.savefig(buf, format="png", dpi=_save_dpi)
+    if crowded_legend and legend is not None:
+        # The fixed height/margin heuristics above are an estimate; grow the
+        # canvas to whatever the legend actually needs instead of clipping it.
+        fig.savefig(
+            buf,
+            format="png",
+            dpi=_save_dpi,
+            bbox_inches="tight",
+            bbox_extra_artists=[legend],
+        )
+    else:
+        fig.savefig(buf, format="png", dpi=_save_dpi)
     plt.close(fig)
     return buf.getvalue()
 
