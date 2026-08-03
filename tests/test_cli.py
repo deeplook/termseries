@@ -460,7 +460,7 @@ class TestPolymarketCommand:
 
 
 # ---------------------------------------------------------------------------
-# csv and ha commands
+# csv and hass commands
 # ---------------------------------------------------------------------------
 
 
@@ -492,11 +492,11 @@ class TestCsvCommand:
         assert captured["names"] == ["temp"]
 
 
-class TestHaCommand:
-    def test_ha_command_wires_fetch_and_autodetects_unit(
+class TestHassCommand:
+    def test_hass_command_wires_fetch_and_autodetects_unit(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The ha command auto-detects the unit when --unit is omitted."""
+        """The hass command auto-detects the unit when --unit is omitted."""
         monkeypatch.chdir(tmp_path)
         captured: dict[str, object] = {}
 
@@ -506,13 +506,15 @@ class TestHaCommand:
 
         with (
             patch(
-                "termseries.cli.fetch_ha_series", return_value=_FAKE_DATA
+                "termseries.cli.fetch_hass_series", return_value=_FAKE_DATA
             ) as fetch_mock,
             patch("termseries.cli._detect_unit", return_value="°C") as detect_mock,
             patch("termseries.cli._render_png", mock_render),
             patch("termseries.cli._output_png"),
         ):
-            result = runner.invoke(app, ["ha", "sensor.temperature", "--period", "30d"])
+            result = runner.invoke(
+                app, ["hass", "sensor.temperature", "--period", "30d"]
+            )
 
         assert result.exit_code == 0
         fetch_mock.assert_called_once_with(["sensor.temperature"], "30d")
@@ -531,7 +533,7 @@ class TestHaCommand:
         (["yahoo", "FAKE"], "fetch_yahoo_series"),
         (["polymarket", "some-market"], "fetch_polymarket_series"),
         (["csv", "data.csv"], "fetch_csv_series"),
-        (["ha", "sensor.x"], "fetch_ha_series"),
+        (["hass", "sensor.x"], "fetch_hass_series"),
     ],
 )
 class TestDataCommandBehaviors:
@@ -549,7 +551,7 @@ class TestDataCommandBehaviors:
                 f"termseries.cli.{fetch_target}",
                 side_effect=RuntimeError("boom"),
             ),
-            # ha resolves the unit before fetching; keep it off the network.
+            # hass resolves the unit before fetching; keep it off the network.
             patch("termseries.cli._detect_unit", return_value="value"),
             patch("termseries.cli._render_png", return_value=_FAKE_PNG),
             patch("termseries.cli._output_png"),

@@ -24,7 +24,7 @@ from termseries.types import TimeSeries
 # ---------------------------------------------------------------------------
 
 
-def _ha_request(path: str) -> Any:
+def _hass_request(path: str) -> Any:
     """Send an authenticated GET to the Home Assistant REST API.
 
     Returns the parsed JSON body.  Raises ``RuntimeError`` on missing env
@@ -65,7 +65,7 @@ def _ha_request(path: str) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def _fetch_ha_entity(entity_id: str, period: str) -> TimeSeries:
+def _fetch_hass_entity(entity_id: str, period: str) -> TimeSeries:
     """Fetch history for a single HA entity and return a sorted TimeSeries.
 
     *period* is a :class:`LastPeriod` value string (e.g. ``"7d"``).
@@ -87,7 +87,7 @@ def _fetch_ha_entity(entity_id: str, period: str) -> TimeSeries:
         f"&minimal_response&no_attributes&significant_changes_only"
     )
 
-    data = _ha_request(path)
+    data = _hass_request(path)
 
     # HA returns a list of lists; first (and only when filtering by one
     # entity) element is the list of state-change objects.
@@ -134,7 +134,7 @@ def _detect_unit(entity_id: str) -> str:
 
     Falls back to ``"value"`` when the attribute is absent.
     """
-    data = _ha_request(f"/api/states/{entity_id}")
+    data = _hass_request(f"/api/states/{entity_id}")
     return (data.get("attributes") or {}).get("unit_of_measurement") or "value"
 
 
@@ -143,7 +143,7 @@ def _detect_unit(entity_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def fetch_ha_series(entity_ids: list[str], period: str) -> dict[str, TimeSeries]:
+def fetch_hass_series(entity_ids: list[str], period: str) -> dict[str, TimeSeries]:
     """Fetch HA sensor history and return labelled time-series data.
 
     Conforms to the ``fetch_fn`` signature used by the TUI and CLI.
@@ -159,10 +159,10 @@ def fetch_ha_series(entity_ids: list[str], period: str) -> dict[str, TimeSeries]
             continue
         seen.add(eid)
 
-        series = _fetch_ha_entity(eid, period)
+        series = _fetch_hass_entity(eid, period)
 
         # Determine a friendly label
-        state_data = _ha_request(f"/api/states/{eid}")
+        state_data = _hass_request(f"/api/states/{eid}")
         label = (state_data.get("attributes") or {}).get("friendly_name") or eid
 
         # Disambiguate entities that share the same friendly_name so one

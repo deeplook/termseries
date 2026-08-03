@@ -17,7 +17,7 @@ from termseries.detect import (
     supports_sixel,
 )
 from termseries.gaps import insert_gaps
-from termseries.ha_source import _detect_unit, fetch_ha_series
+from termseries.hass_source import _detect_unit, fetch_hass_series
 from termseries.period import (
     TUI_PERIOD_CHOICES,
     parse_period,
@@ -61,7 +61,7 @@ app = typer.Typer(
         "  termseries --mode drawdown yahoo --period 1y TSLA AAPL\n"
         "  termseries polymarket will-bitcoin-hit-150k-in-2026\n"
         "  termseries csv data.csv --period 30d\n"
-        "  termseries ha sensor.temperature --period 7d\n"
+        "  termseries hass sensor.temperature --period 7d\n"
     ),
 )
 
@@ -532,15 +532,15 @@ def csv_cmd(
 @app.command(  # type: ignore[misc]
     epilog=(
         "Examples:\n\n"
-        "  termseries ha sensor.temperature\n"
-        "  termseries ha sensor.temperature sensor.humidity --period 30d\n"
-        "  termseries --mode absolute ha sensor.power --unit W\n"
+        "  termseries hass sensor.temperature\n"
+        "  termseries hass sensor.temperature sensor.humidity --period 30d\n"
+        "  termseries --mode absolute hass sensor.power --unit W\n"
     )
 )
-def ha(
+def hass(
     ctx: typer.Context,
     entities: Annotated[
-        list[str], typer.Argument(help="HA entity IDs (e.g. sensor.temperature)")
+        list[str], typer.Argument(help="HASS entity IDs (e.g. sensor.temperature)")
     ],
     period: Annotated[
         str,
@@ -567,7 +567,7 @@ def ha(
             ratio=opts["ratio"],
             mode=opts["mode"],
             colors=opts["colors"],
-            fetch_fn=fetch_ha_series,
+            fetch_fn=fetch_hass_series,
             value_unit=unit if unit is not None else "value",
             style_override=opts["style"],
             reload_interval=opts["reload"],
@@ -580,7 +580,7 @@ def ha(
     typer.echo(f"Fetching {', '.join(entities)} from Home Assistant…", err=True)
     try:
         resolved_unit = unit if unit is not None else _detect_unit(entities[0])
-        data = fetch_ha_series(entities, period)
+        data = fetch_hass_series(entities, period)
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None

@@ -14,7 +14,7 @@ or saves to file, with an optional interactive Textual TUI.
 
 ### Data Sources
 - Fetch stock/crypto/index prices from Yahoo Finance via the `yahoo` subcommand, with auto-picked intra-day intervals for short periods (e.g. 5m for 1d, 15m for 5d/7d)
-- Plot Home Assistant sensor history via the `ha` subcommand (REST API)
+- Plot Home Assistant sensor history via the `hass` subcommand (REST API)
 - Load local two-column CSV files (timestamp, value) via the `csv` subcommand
 - Auto-detect and skip CSV headers, blank lines, NaN/Inf values
 - Accept ISO 8601 timestamps and Unix epochs in CSV files
@@ -101,7 +101,7 @@ termseries --mode cumulative csv sensor.csv --period 30d
 termseries --mode delta yahoo TSLA --period 1mo
 
 # Show gaps in data (break lines where data is missing)
-termseries --gaps show ha sensor.living_room_temperature --period 7d
+termseries --gaps show hass sensor.living_room_temperature --period 7d
 
 # Connect gaps under 1 hour, break larger ones
 termseries --gaps 1h csv sensor.csv --period 30d
@@ -113,7 +113,7 @@ termseries --line-style step-post yahoo TSLA --period 5d
 termseries --tz local yahoo TSLA AAPL
 
 # Display x-axis in a specific timezone
-termseries --tz Europe/Berlin ha sensor.living_room_temperature --period 1d
+termseries --tz Europe/Berlin hass sensor.living_room_temperature --period 1d
 
 # Copy plot to clipboard
 termseries yahoo -c TSLA AAPL
@@ -123,17 +123,17 @@ termseries -i yahoo TSLA
 
 # --- Home Assistant sensors ---
 
-# Plot HA sensor data (requires HASS_SERVER and HASS_TOKEN env vars)
-termseries ha sensor.living_room_temperature sensor.bedroom_temperature
+# Plot HASS sensor data (requires HASS_SERVER and HASS_TOKEN env vars)
+termseries hass sensor.living_room_temperature sensor.bedroom_temperature
 
 # Last 3 hours of data
-termseries ha sensor.living_room_temperature --period 3h
+termseries hass sensor.living_room_temperature --period 3h
 
 # Last 30 days with explicit unit
-termseries ha sensor.living_room_temperature --period 30d --unit '°C'
+termseries hass sensor.living_room_temperature --period 30d --unit '°C'
 
-# Interactive TUI with HA data
-termseries -i ha sensor.power_consumption
+# Interactive TUI with HASS data
+termseries -i hass sensor.power_consumption
 
 # --- CSV files ---
 
@@ -150,7 +150,7 @@ termseries yahoo TSLA --period 2w
 # Calendar-anchored to-date periods
 termseries yahoo TSLA --period ytd
 termseries yahoo TSLA --period mtd
-termseries ha sensor.power_consumption --period dtd
+termseries hass sensor.power_consumption --period dtd
 
 # Interactive TUI with CSV data
 termseries -i csv sensor.csv
@@ -176,7 +176,7 @@ Each file becomes one series labelled by its filename (without extension). The
 the x-axis to the data with no empty space. The `--unit` option sets the
 y-axis label (default: `value`).
 
-The `ha` subcommand uses the same `--period` syntax and auto-detects the unit
+The `hass` subcommand uses the same `--period` syntax and auto-detects the unit
 from the entity's attributes.
 
 ## Shared Options
@@ -234,7 +234,7 @@ on the period duration:
 
 ## Home Assistant Setup
 
-The `ha` subcommand connects to a running Home Assistant instance via the
+The `hass` subcommand connects to a running Home Assistant instance via the
 REST API. Set these environment variables:
 
 ```bash
@@ -242,7 +242,7 @@ export HASS_SERVER=http://homeassistant.local:8123
 export HASS_TOKEN=your_long_lived_access_token
 ```
 
-Create a long-lived access token in HA under **Profile > Security > Long-Lived
+Create a long-lived access token in HASS under **Profile > Security > Long-Lived
 Access Tokens**. The unit label (y-axis) is auto-detected from the entity's
 `unit_of_measurement` attribute; use `--unit` to override.
 

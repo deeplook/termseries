@@ -1,4 +1,4 @@
-"""Tests for termseries.ha_source functions."""
+"""Tests for termseries.hass_source functions."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from termseries.ha_source import (
+from termseries.hass_source import (
     _detect_unit,
-    _fetch_ha_entity,
-    _ha_request,
-    fetch_ha_series,
+    _fetch_hass_entity,
+    _hass_request,
+    fetch_hass_series,
 )
 
 
@@ -32,7 +32,7 @@ def _mock_response(body: object, status: int = 200) -> MagicMock:
 
 
 # ===================================================================
-# _ha_request
+# _hass_request
 # ===================================================================
 
 
@@ -41,27 +41,27 @@ class TestHaRequest:
         monkeypatch.delenv("HASS_SERVER", raising=False)
         monkeypatch.delenv("HASS_TOKEN", raising=False)
         with pytest.raises(RuntimeError, match="HASS_SERVER and HASS_TOKEN"):
-            _ha_request("/api/states")
+            _hass_request("/api/states")
 
     def test_missing_token_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.delenv("HASS_TOKEN", raising=False)
         with pytest.raises(RuntimeError, match="HASS_SERVER and HASS_TOKEN"):
-            _ha_request("/api/states")
+            _hass_request("/api/states")
 
     def test_missing_url_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("HASS_SERVER", raising=False)
         monkeypatch.setenv("HASS_TOKEN", "tok")
         with pytest.raises(RuntimeError, match="HASS_SERVER and HASS_TOKEN"):
-            _ha_request("/api/states")
+            _hass_request("/api/states")
 
     def test_successful_request(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "test-token")
 
         resp = _mock_response({"key": "value"})
-        with patch("termseries.ha_source.requests.get", return_value=resp):
-            result = _ha_request("/api/states")
+        with patch("termseries.hass_source.requests.get", return_value=resp):
+            result = _hass_request("/api/states")
         assert result == {"key": "value"}
 
     def test_trailing_slash_stripped(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -69,8 +69,10 @@ class TestHaRequest:
         monkeypatch.setenv("HASS_TOKEN", "test-token")
 
         resp = _mock_response([])
-        with patch("termseries.ha_source.requests.get", return_value=resp) as mock_get:
-            _ha_request("/api/states")
+        with patch(
+            "termseries.hass_source.requests.get", return_value=resp
+        ) as mock_get:
+            _hass_request("/api/states")
         # Check that the URL was built correctly (no double slash)
         assert mock_get.call_args[0][0] == "http://ha.local:8123/api/states"
 
@@ -80,16 +82,16 @@ class TestHaRequest:
 
         with (
             patch(
-                "termseries.ha_source.requests.get",
+                "termseries.hass_source.requests.get",
                 side_effect=requests.ConnectionError("Connection refused"),
             ),
             pytest.raises(RuntimeError, match="Failed to connect"),
         ):
-            _ha_request("/api/states")
+            _hass_request("/api/states")
 
 
 # ===================================================================
-# _fetch_ha_entity
+# _fetch_hass_entity
 # ===================================================================
 
 
@@ -106,8 +108,8 @@ class TestFetchHaEntity:
             ]
         ]
         resp = _mock_response(history)
-        with patch("termseries.ha_source.requests.get", return_value=resp):
-            series = _fetch_ha_entity("sensor.temp", "7d")
+        with patch("termseries.hass_source.requests.get", return_value=resp):
+            series = _fetch_hass_entity("sensor.temp", "7d")
 
         assert len(series) == 3
         assert series[0][1] == 21.5
@@ -132,8 +134,8 @@ class TestFetchHaEntity:
             ]
         ]
         resp = _mock_response(history)
-        with patch("termseries.ha_source.requests.get", return_value=resp):
-            series = _fetch_ha_entity("sensor.temp", "7d")
+        with patch("termseries.hass_source.requests.get", return_value=resp):
+            series = _fetch_hass_entity("sensor.temp", "7d")
 
         assert len(series) == 2
         assert series[0][1] == 22.0
@@ -151,8 +153,8 @@ class TestFetchHaEntity:
             ]
         ]
         resp = _mock_response(history)
-        with patch("termseries.ha_source.requests.get", return_value=resp):
-            series = _fetch_ha_entity("sensor.temp", "max")
+        with patch("termseries.hass_source.requests.get", return_value=resp):
+            series = _fetch_hass_entity("sensor.temp", "max")
 
         assert len(series) == 2
         assert series[0][1] == 21.5
@@ -164,10 +166,10 @@ class TestFetchHaEntity:
 
         resp = _mock_response([[]])
         with (
-            patch("termseries.ha_source.requests.get", return_value=resp),
+            patch("termseries.hass_source.requests.get", return_value=resp),
             pytest.raises(RuntimeError, match="No history data"),
         ):
-            _fetch_ha_entity("sensor.temp", "7d")
+            _fetch_hass_entity("sensor.temp", "7d")
 
     def test_all_non_numeric_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
@@ -181,10 +183,10 @@ class TestFetchHaEntity:
         ]
         resp = _mock_response(history)
         with (
-            patch("termseries.ha_source.requests.get", return_value=resp),
+            patch("termseries.hass_source.requests.get", return_value=resp),
             pytest.raises(RuntimeError, match="No numeric states"),
         ):
-            _fetch_ha_entity("sensor.temp", "7d")
+            _fetch_hass_entity("sensor.temp", "7d")
 
     def test_no_data_at_all_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
@@ -192,10 +194,10 @@ class TestFetchHaEntity:
 
         resp = _mock_response([])
         with (
-            patch("termseries.ha_source.requests.get", return_value=resp),
+            patch("termseries.hass_source.requests.get", return_value=resp),
             pytest.raises(RuntimeError, match="No history data"),
         ):
-            _fetch_ha_entity("sensor.temp", "7d")
+            _fetch_hass_entity("sensor.temp", "7d")
 
     def test_sorts_unsorted_history(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
@@ -209,8 +211,8 @@ class TestFetchHaEntity:
             ]
         ]
         resp = _mock_response(history)
-        with patch("termseries.ha_source.requests.get", return_value=resp):
-            series = _fetch_ha_entity("sensor.temp", "max")
+        with patch("termseries.hass_source.requests.get", return_value=resp):
+            series = _fetch_hass_entity("sensor.temp", "max")
 
         timestamps = [dt for dt, _ in series]
         assert timestamps == sorted(timestamps)
@@ -235,7 +237,7 @@ class TestDetectUnit:
             "attributes": {"unit_of_measurement": "\u00b0C", "friendly_name": "Temp"},
         }
         resp = _mock_response(state)
-        with patch("termseries.ha_source.requests.get", return_value=resp):
+        with patch("termseries.hass_source.requests.get", return_value=resp):
             assert _detect_unit("sensor.temp") == "\u00b0C"
 
     def test_fallback_to_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -248,7 +250,7 @@ class TestDetectUnit:
             "attributes": {"friendly_name": "Custom Sensor"},
         }
         resp = _mock_response(state)
-        with patch("termseries.ha_source.requests.get", return_value=resp):
+        with patch("termseries.hass_source.requests.get", return_value=resp):
             assert _detect_unit("sensor.custom") == "value"
 
     def test_empty_attributes_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -257,12 +259,12 @@ class TestDetectUnit:
 
         state = {"entity_id": "sensor.bare", "state": "1", "attributes": {}}
         resp = _mock_response(state)
-        with patch("termseries.ha_source.requests.get", return_value=resp):
+        with patch("termseries.hass_source.requests.get", return_value=resp):
             assert _detect_unit("sensor.bare") == "value"
 
 
 # ===================================================================
-# fetch_ha_series
+# fetch_hass_series
 # ===================================================================
 
 
@@ -326,10 +328,10 @@ class TestFetchHaSeries:
         mocks = self._make_mocks()
 
         with patch(
-            "termseries.ha_source.requests.get",
+            "termseries.hass_source.requests.get",
             side_effect=self._side_effect(mocks),
         ):
-            result = fetch_ha_series(["sensor.temp"], "max")
+            result = fetch_hass_series(["sensor.temp"], "max")
 
         assert "Living Room Temperature" in result
         assert len(result["Living Room Temperature"]) == 2
@@ -340,10 +342,10 @@ class TestFetchHaSeries:
         mocks = self._make_mocks()
 
         with patch(
-            "termseries.ha_source.requests.get",
+            "termseries.hass_source.requests.get",
             side_effect=self._side_effect(mocks),
         ):
-            result = fetch_ha_series(["sensor.temp", "sensor.humid"], "max")
+            result = fetch_hass_series(["sensor.temp", "sensor.humid"], "max")
 
         assert "Living Room Temperature" in result
         assert "Bedroom Humidity" in result
@@ -354,10 +356,10 @@ class TestFetchHaSeries:
         mocks = self._make_mocks()
 
         with patch(
-            "termseries.ha_source.requests.get",
+            "termseries.hass_source.requests.get",
             side_effect=self._side_effect(mocks),
         ):
-            result = fetch_ha_series(
+            result = fetch_hass_series(
                 ["sensor.temp", "sensor.temp", "sensor.temp"], "max"
             )
 
@@ -385,7 +387,7 @@ class TestFetchHaSeries:
                 return _mock_response(state)
             raise ValueError(f"Unexpected URL: {url}")
 
-        with patch("termseries.ha_source.requests.get", side_effect=get):
-            result = fetch_ha_series(["sensor.no_name"], "max")
+        with patch("termseries.hass_source.requests.get", side_effect=get):
+            result = fetch_hass_series(["sensor.no_name"], "max")
 
         assert "sensor.no_name" in result

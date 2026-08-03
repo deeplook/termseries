@@ -8,18 +8,18 @@ from __future__ import annotations
 
 __version__ = "0.1.0"
 
-from termseries.cli import app, csv_cmd, demo, ha, main, polymarket, yahoo
+from termseries.cli import app, csv_cmd, demo, hass, main, polymarket, yahoo
 from termseries.csv_source import (
     _parse_timestamp,
     _read_csv,
     fetch_csv_series,
 )
 from termseries.gaps import insert_gaps
-from termseries.ha_source import (
+from termseries.hass_source import (
     _detect_unit,
-    _fetch_ha_entity,
-    _ha_request,
-    fetch_ha_series,
+    _fetch_hass_entity,
+    _hass_request,
+    fetch_hass_series,
 )
 from termseries.period import (
     TUI_PERIOD_CHOICES,
@@ -78,11 +78,11 @@ __all__ = [
     "fetch_polymarket_series",
     "_fetch_closes",
     "fetch_csv_series",
-    "fetch_ha_series",
-    "_ha_request",
-    "_fetch_ha_entity",
+    "fetch_hass_series",
+    "_hass_request",
+    "_fetch_hass_entity",
     "_detect_unit",
-    "ha",
+    "hass",
     "_read_csv",
     "_parse_timestamp",
     "_render_png",
