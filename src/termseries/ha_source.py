@@ -165,6 +165,11 @@ def fetch_ha_series(entity_ids: list[str], period: str) -> dict[str, TimeSeries]
         state_data = _ha_request(f"/api/states/{eid}")
         label = (state_data.get("attributes") or {}).get("friendly_name") or eid
 
+        # Disambiguate entities that share the same friendly_name so one
+        # doesn't silently overwrite another in the result dict.
+        if label in result:
+            label = f"{label} ({eid})"
+
         result[label] = series
 
     return result
