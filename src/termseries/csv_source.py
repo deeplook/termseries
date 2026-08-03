@@ -7,7 +7,7 @@ import math
 from datetime import datetime, timezone
 from pathlib import Path
 
-from termseries.period import filter_period, parse_period
+from termseries.period import filter_period, parse_period, resolve_tz
 from termseries.types import TimeSeries
 
 # ---------------------------------------------------------------------------
@@ -119,16 +119,20 @@ def _read_csv(path: str) -> TimeSeries:
 # ---------------------------------------------------------------------------
 
 
-def fetch_csv_series(paths: list[str], period: str) -> dict[str, TimeSeries]:
+def fetch_csv_series(
+    paths: list[str], period: str, *, tz: str = "UTC"
+) -> dict[str, TimeSeries]:
     """Load CSV files and return labelled time-series data.
 
     Conforms to the ``fetch_fn`` signature used by the TUI and CLI.
 
     The period window is anchored to *now* so that all series share the
     same time range (rather than each being truncated to its own last
-    timestamp).
+    timestamp). *tz* controls which timezone to-date periods
+    (ytd/mtd/wtd/dtd/htd) anchor their calendar boundary in.
     """
     now = datetime.now(timezone.utc) if parse_period(period) else None
+    resolved_tz = resolve_tz(tz)
     seen: set[str] = set()
     result: dict[str, TimeSeries] = {}
 
@@ -139,7 +143,7 @@ def fetch_csv_series(paths: list[str], period: str) -> dict[str, TimeSeries]:
         seen.add(resolved)
 
         series = _read_csv(raw_path)
-        series = filter_period(series, period, reference=now)
+        series = filter_period(series, period, reference=now, tz=resolved_tz)
         label = Path(raw_path).stem
         result[label] = series
 

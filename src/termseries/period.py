@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, tzinfo
+from zoneinfo import ZoneInfo
 
 from termseries.types import TimeSeries
 
@@ -21,12 +22,34 @@ _UNIT_TO_TIMEDELTA: dict[str, timedelta] = {
 _TO_DATE_PERIODS = frozenset({"ytd", "mtd", "wtd", "dtd", "htd"})
 
 
-def _to_date_cutoff(period: str, now: datetime | None = None) -> datetime | None:
-    """Return the absolute cutoff for a to-date period, or ``None``."""
+def resolve_tz(tz: str) -> tzinfo | None:
+    """Resolve a ``--tz`` CLI value to a ``tzinfo``.
+
+    ``"UTC"`` -> ``timezone.utc``, ``"local"`` -> ``None`` (meaning: use
+    ``astimezone(None)``, i.e. the system's local timezone), anything else
+    is treated as an IANA zone name.
+    """
+    if tz == "UTC":
+        return timezone.utc
+    if tz == "local":
+        return None
+    return ZoneInfo(tz)
+
+
+def _to_date_cutoff(
+    period: str, now: datetime | None = None, tz: tzinfo | None = timezone.utc
+) -> datetime | None:
+    """Return the absolute cutoff for a to-date period, or ``None``.
+
+    Calendar boundaries (start of year/month/week/day/hour) are computed in
+    *tz* (default UTC), so e.g. ``dtd`` means "since local midnight" when
+    *tz* reflects the user's ``--tz`` choice, not always UTC midnight.
+    """
     if period not in _TO_DATE_PERIODS:
         return None
     if now is None:
         now = datetime.now(timezone.utc)
+    now = now.astimezone(tz)
     if period == "ytd":
         return now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
     if period == "mtd":
@@ -82,17 +105,19 @@ TUI_PERIOD_CHOICES: list[str] = [
 ]
 
 
-def parse_period(value: str) -> timedelta | None:
+def parse_period(value: str, *, tz: tzinfo | None = timezone.utc) -> timedelta | None:
     """Parse a free-form period string into a timedelta.
 
     Returns ``None`` for ``"max"``.  Raises ``ValueError`` on invalid input.
     Approximate conversions: ``mo`` = 30 days, ``y`` = 365 days.
+    *tz* controls which timezone to-date periods (ytd/mtd/wtd/dtd/htd)
+    anchor their calendar boundary in (default UTC).
     """
     if value in ("max", "auto"):
         return None
     if value in _TO_DATE_PERIODS:
         now = datetime.now(timezone.utc)
-        cutoff = _to_date_cutoff(value, now)
+        cutoff = _to_date_cutoff(value, now, tz=tz)
         assert cutoff is not None  # guaranteed by _TO_DATE_PERIODS check
         return now - cutoff
     m = _PERIOD_RE.match(value)
@@ -112,14 +137,17 @@ def filter_period(
     period: str,
     *,
     reference: datetime | None = None,
+    tz: tzinfo | None = timezone.utc,
 ) -> TimeSeries:
     """Filter *series* to points within *period* of a reference time.
 
     *reference* defaults to the most recent timestamp in the series.
     Pass an explicit value (e.g. ``datetime.now()``) to anchor the
     window to a fixed point so that multiple series share the same range.
+    *tz* controls which timezone to-date periods (ytd/mtd/wtd/dtd/htd)
+    anchor their calendar boundary in (default UTC).
     """
-    cutoff = _to_date_cutoff(period, now=reference)
+    cutoff = _to_date_cutoff(period, now=reference, tz=tz)
     if cutoff is not None:
         return [(dt, v) for dt, v in series if dt >= cutoff]
     delta = parse_period(period)
@@ -132,21 +160,22 @@ def filter_period(
 
 
 def xlim_now(
-    period: str, data: dict[str, TimeSeries]
+    period: str, data: dict[str, TimeSeries], *, tz: tzinfo | None = timezone.utc
 ) -> tuple[datetime, datetime] | None:
     """Compute an x-axis range ending at *now* for the given period and data.
 
     For a specific period the window is ``[now - delta, now]``.
     For ``"max"`` it spans from the earliest data point to now.
     For ``"auto"`` returns ``None`` so matplotlib auto-fits to the data.
+    *tz* controls which timezone to-date periods anchor their boundary in.
     """
     if period == "auto":
         return None
     now = datetime.now(timezone.utc)
-    cutoff = _to_date_cutoff(period, now)
+    cutoff = _to_date_cutoff(period, now, tz=tz)
     if cutoff is not None:
         return (cutoff, now)
-    delta = parse_period(period)
+    delta = parse_period(period, tz=tz)
     if delta is not None:
         return (now - delta, now)
     all_ts = [dt for pts in data.values() for dt, _ in pts]

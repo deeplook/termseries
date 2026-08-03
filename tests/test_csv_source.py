@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -220,3 +221,12 @@ class TestFetchCsvSeries:
         f.write_text("2024-01-01,1.0\n")
         result = fetch_csv_series([str(f)], "max")
         assert "my_sensor_data" in result
+
+    def test_tz_is_resolved_and_threaded_to_filter_period(self, tmp_path: Path) -> None:
+        f = tmp_path / "data.csv"
+        f.write_text("2024-01-01,10.0\n")
+        with patch(
+            "termseries.csv_source.filter_period", wraps=lambda pts, *a, **kw: pts
+        ) as mock_filter:
+            fetch_csv_series([str(f)], "ytd", tz="America/Los_Angeles")
+        assert str(mock_filter.call_args.kwargs["tz"]) == "America/Los_Angeles"

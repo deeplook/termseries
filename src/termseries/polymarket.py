@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from termseries.period import filter_period, polymarket_covering_range
+from termseries.period import filter_period, polymarket_covering_range, resolve_tz
 from termseries.types import TimeSeries
 
 _CLOB_URL = "https://clob.polymarket.com"
@@ -313,8 +313,13 @@ def fetch_polymarket_series(
     outcome: str = "yes",
     interval: str = "auto",
     fidelity: int = 1,
+    tz: str = "UTC",
 ) -> dict[str, TimeSeries]:
-    """Fetch outcome-token price series for one or more Polymarket markets."""
+    """Fetch outcome-token price series for one or more Polymarket markets.
+
+    *tz* controls which timezone to-date periods (ytd/mtd/wtd/dtd/htd)
+    anchor their calendar boundary in.
+    """
     slugs = list(
         dict.fromkeys(
             normalized
@@ -332,6 +337,7 @@ def fetch_polymarket_series(
     )
     need_trim = resolved_interval != period and period != "max"
     now = datetime.now(timezone.utc) if need_trim else None
+    resolved_tz = resolve_tz(tz)
 
     result: dict[str, TimeSeries] = {}
     for slug in slugs:
@@ -382,7 +388,7 @@ def fetch_polymarket_series(
                     raise
                 continue
             if need_trim:
-                series = filter_period(series, period, reference=now)
+                series = filter_period(series, period, reference=now, tz=resolved_tz)
             if not series:
                 continue
             result[f"{_display_market_name(payload)}: {label}"] = series

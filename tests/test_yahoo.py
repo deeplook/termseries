@@ -187,3 +187,14 @@ class TestFetchYahooSeries:
         references = {call.kwargs["reference"] for call in mock_filter.call_args_list}
         assert len(references) == 1
         assert next(iter(references)) is not None
+
+    def test_tz_is_resolved_and_threaded_to_filter_period(self) -> None:
+        p = self._simple_payload()
+        with (
+            patch("termseries.yahoo.requests.get", return_value=_mock_resp(p)),
+            patch(
+                "termseries.yahoo.filter_period", wraps=lambda pts, *a, **kw: pts
+            ) as mock_filter,
+        ):
+            fetch_yahoo_series(["TSLA"], "14d", tz="America/Los_Angeles")
+        assert str(mock_filter.call_args.kwargs["tz"]) == "America/Los_Angeles"

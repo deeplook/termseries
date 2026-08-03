@@ -6,7 +6,12 @@ from datetime import datetime, timezone
 
 import requests
 
-from termseries.period import filter_period, yahoo_auto_interval, yahoo_covering_range
+from termseries.period import (
+    filter_period,
+    resolve_tz,
+    yahoo_auto_interval,
+    yahoo_covering_range,
+)
 from termseries.types import TimeSeries
 
 
@@ -50,6 +55,8 @@ def fetch_yahoo_series(
     tickers: list[str],
     period: str,
     interval: str = "auto",
+    *,
+    tz: str = "UTC",
 ) -> dict[str, TimeSeries]:
     """Fetch close-price time series from Yahoo Finance for each ticker.
 
@@ -57,12 +64,14 @@ def fetch_yahoo_series(
     Tickers are deduplicated and uppercased; order is preserved.
 
     Non-native Yahoo periods are handled by overfetching the next-larger
-    native range and trimming client-side.
+    native range and trimming client-side. *tz* controls which timezone
+    to-date periods (ytd/mtd/wtd/dtd/htd) anchor their calendar boundary in.
     """
     resolved = yahoo_auto_interval(period) if interval == "auto" else interval
     covering = yahoo_covering_range(period)
     need_trim = covering != period
     now = datetime.now(timezone.utc) if need_trim else None
+    resolved_tz = resolve_tz(tz)
 
     tickers = list(dict.fromkeys(t.strip().upper() for t in tickers if t.strip()))
     if not tickers:
@@ -74,6 +83,6 @@ def fetch_yahoo_series(
     for ticker in tickers:
         points = _fetch_closes(ticker, covering, resolved)
         if need_trim:
-            points = filter_period(points, period, reference=now)
+            points = filter_period(points, period, reference=now, tz=resolved_tz)
         result[ticker] = points
     return result

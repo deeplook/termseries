@@ -6,16 +6,16 @@ import hashlib
 import math
 import sys
 from collections.abc import Callable, Sequence
-from datetime import datetime, timezone
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import matplotlib
 import matplotlib.pyplot as plt
 from cycler import cycler
 
+from termseries.period import resolve_tz
 from termseries.terminal import (
     _copy_to_clipboard,
     _detect_dark_terminal,
@@ -205,13 +205,7 @@ def _render_png(
         Extra .mplstyle file layered on top of the base theme.
     """
     # Resolve target timezone for x-axis display
-    target_tz: timezone | ZoneInfo | None
-    if tz == "UTC":
-        target_tz = timezone.utc
-    elif tz == "local":
-        target_tz = None  # astimezone(None) gives local tz
-    else:
-        target_tz = ZoneInfo(tz)
+    target_tz = resolve_tz(tz)
 
     names = list(series.keys())
     if not names:

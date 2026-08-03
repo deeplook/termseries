@@ -222,10 +222,14 @@ All subcommands accept `--period` with free-form `<number><unit>` values:
 | `ytd`| `ytd`   | year-to-date (from Jan 1st) |
 | `mtd`| `mtd`   | month-to-date (from 1st of month) |
 | `wtd`| `wtd`   | week-to-date (from Monday) |
-| `dtd`| `dtd`   | day-to-date (from midnight UTC) |
+| `dtd`| `dtd`   | day-to-date (from midnight) |
 | `htd`| `htd`   | hour-to-date (from start of hour) |
 | `max`|         | all data, x-axis extends to now |
 | `auto`|        | all data, x-axis fits to data |
+
+Calendar boundaries for `ytd`/`mtd`/`wtd`/`dtd`/`htd` are computed in the
+timezone set by `--tz` (default UTC) — e.g. `--tz local --period dtd` means
+"since local midnight", not UTC midnight.
 
 For Yahoo, non-native periods (e.g. `14d`, `2w`) are handled automatically by
 overfetching the next-larger native range and trimming client-side.

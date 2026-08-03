@@ -335,6 +335,27 @@ class TestFetchPolymarketSeries:
         assert len(references) == 1
         assert next(iter(references)) is not None
 
+    def test_tz_is_resolved_and_threaded_to_filter_period(self) -> None:
+        market_payload = {
+            "clobTokenIds": '["1001", "1002"]',
+            "outcomes": '["Yes", "No"]',
+        }
+        history_payload = {"history": [{"t": _recent_ts(1), "p": 0.61}]}
+
+        with (
+            patch(
+                "termseries.polymarket.requests.get",
+                side_effect=[_mock_resp(market_payload), _mock_resp(history_payload)],
+            ),
+            patch(
+                "termseries.polymarket.filter_period",
+                wraps=lambda pts, *a, **kw: pts,
+            ) as mock_filter,
+        ):
+            fetch_polymarket_series(["btc-150k"], "30d", tz="America/Los_Angeles")
+
+        assert str(mock_filter.call_args.kwargs["tz"]) == "America/Los_Angeles"
+
     def test_skips_markets_with_no_history_if_others_have_data(self) -> None:
         event_payload = {
             "markets": [

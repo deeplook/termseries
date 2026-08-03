@@ -10,6 +10,7 @@ from termseries.period import (
     _to_date_cutoff,
     filter_period,
     parse_period,
+    resolve_tz,
     xlim_now,
     yahoo_auto_interval,
     yahoo_covering_range,
@@ -68,6 +69,46 @@ class TestToDateCutoff:
         cutoff = _to_date_cutoff("ytd")
         assert cutoff is not None
         assert cutoff <= datetime.now(timezone.utc)
+
+    def test_dtd_honors_explicit_tz_across_a_utc_date_boundary(self) -> None:
+        """A far-ahead-of-UTC zone (UTC+14) has already crossed into the next
+        local day while UTC is still on the previous one -- dtd's cutoff must
+        reflect the *local* midnight, not UTC midnight."""
+        # 2024-07-17 23:30 UTC == 2024-07-18 13:30 in UTC+14
+        now_utc = datetime(2024, 7, 17, 23, 30, tzinfo=timezone.utc)
+        utc_plus_14 = timezone(timedelta(hours=14))
+        cutoff = _to_date_cutoff("dtd", now_utc, tz=utc_plus_14)
+        assert cutoff == datetime(2024, 7, 18, tzinfo=utc_plus_14)
+        # The UTC-only cutoff would incorrectly still be 2024-07-17.
+        assert _to_date_cutoff("dtd", now_utc) == datetime(
+            2024, 7, 17, tzinfo=timezone.utc
+        )
+
+    def test_ytd_honors_explicit_tz_across_a_year_boundary(self) -> None:
+        """A far-behind-UTC zone (UTC-12) is still in the previous local year
+        while UTC has already crossed into the new one."""
+        # 2025-01-01 05:00 UTC == 2024-12-31 17:00 in UTC-12
+        now_utc = datetime(2025, 1, 1, 5, 0, tzinfo=timezone.utc)
+        utc_minus_12 = timezone(timedelta(hours=-12))
+        cutoff = _to_date_cutoff("ytd", now_utc, tz=utc_minus_12)
+        assert cutoff == datetime(2024, 1, 1, tzinfo=utc_minus_12)
+        # The UTC-only cutoff would incorrectly already be 2025.
+        assert _to_date_cutoff("ytd", now_utc) == datetime(
+            2025, 1, 1, tzinfo=timezone.utc
+        )
+
+
+class TestResolveTz:
+    def test_utc(self) -> None:
+        assert resolve_tz("UTC") is timezone.utc
+
+    def test_local_is_none(self) -> None:
+        assert resolve_tz("local") is None
+
+    def test_iana_name(self) -> None:
+        tz = resolve_tz("America/Los_Angeles")
+        assert tz is not None
+        assert str(tz) == "America/Los_Angeles"
 
 
 # ===================================================================
@@ -329,6 +370,31 @@ class TestFilterPeriod:
         ]
         filtered = filter_period(series, "dtd", reference=reference)
         assert filtered == [(today_start, 2.0), (reference, 3.0)]
+
+    def test_dtd_honors_explicit_tz(self) -> None:
+        """A UTC-12 user's 'today' includes a point plain UTC dtd would miss.
+
+        reference = 2024-07-17 05:00 UTC = 2024-07-16 17:00 in UTC-12, so the
+        user's local "today" is July 16. A point at 2024-07-16 18:00 UTC is
+        also local July 16 (06:00), so it belongs in the local window -- but
+        its UTC calendar date is July 16, before the UTC-only cutoff of
+        2024-07-17 00:00 (start of reference's *UTC* day), so plain UTC dtd
+        wrongly excludes it.
+        """
+        utc_minus_12 = timezone(timedelta(hours=-12))
+        reference = datetime(2024, 7, 17, 5, 0, tzinfo=timezone.utc)
+        point_local_today_utc_yesterday = datetime(
+            2024, 7, 16, 18, 0, tzinfo=timezone.utc
+        )
+        series = [
+            (point_local_today_utc_yesterday, 1.0),
+            (reference, 2.0),
+        ]
+        utc_only = filter_period(series, "dtd", reference=reference)
+        assert utc_only == [(reference, 2.0)]  # UTC dtd excludes the July-16 point
+
+        tz_aware = filter_period(series, "dtd", reference=reference, tz=utc_minus_12)
+        assert tz_aware == series  # both points fall on local July 16 in UTC-12
 
 
 # ===================================================================

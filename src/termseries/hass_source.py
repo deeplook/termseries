@@ -11,13 +11,13 @@ from __future__ import annotations
 
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, tzinfo
 from typing import Any
 
 import requests
 
 from termseries.csv_source import _parse_timestamp
-from termseries.period import filter_period, parse_period
+from termseries.period import filter_period, parse_period, resolve_tz
 from termseries.types import TimeSeries
 
 # ---------------------------------------------------------------------------
@@ -128,16 +128,24 @@ def expand_entities(entity_ids: list[str]) -> list[str]:
 
 
 def _fetch_hass_entity(
-    entity_id: str, period: str, *, reference: datetime | None = None
+    entity_id: str,
+    period: str,
+    *,
+    reference: datetime | None = None,
+    tz: tzinfo | None = timezone.utc,
 ) -> TimeSeries:
     """Fetch history for a single HA entity and return a sorted TimeSeries.
 
     *period* is a :class:`LastPeriod` value string (e.g. ``"7d"``).
     *reference* anchors both the request window and the final trim; pass
     the same value across entities in one call so they share a range.
+    *tz* controls which timezone to-date periods (ytd/mtd/etc) anchor
+    their calendar boundary in -- it must also bound the request window
+    here, not just the final trim, or the boundary shift would have
+    already discarded data the trim needs.
     """
     now = reference if reference is not None else datetime.now(tz=timezone.utc)
-    delta = parse_period(period)
+    delta = parse_period(period, tz=tz)
     if delta is None:  # noqa: SIM108 -- if/else reads clearer with this comment
         # "max" — request a very large window (10 years)
         start = datetime(2015, 1, 1, tzinfo=timezone.utc)
@@ -187,7 +195,7 @@ def _fetch_hass_entity(
     # chart doesn't show an artifact (a diagonal line from a stale value).
     points = [(dt, v) for dt, v in points if dt >= start]
 
-    return filter_period(points, period, reference=now)
+    return filter_period(points, period, reference=now, tz=tz)
 
 
 # ---------------------------------------------------------------------------
@@ -209,19 +217,24 @@ def _detect_unit(entity_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def fetch_hass_series(entity_ids: list[str], period: str) -> dict[str, TimeSeries]:
+def fetch_hass_series(
+    entity_ids: list[str], period: str, *, tz: str = "UTC"
+) -> dict[str, TimeSeries]:
     """Fetch HA sensor history and return labelled time-series data.
 
     Conforms to the ``fetch_fn`` signature used by the TUI and CLI.
     Labels use the ``friendly_name`` attribute when available, falling
     back to the raw *entity_id*. Entity IDs may include glob-style
-    patterns (``*``, ``?``); see :func:`expand_entities`.
+    patterns (``*``, ``?``); see :func:`expand_entities`. *tz* controls
+    which timezone to-date periods (ytd/mtd/wtd/dtd/htd) anchor their
+    calendar boundary in.
     """
     result: dict[str, TimeSeries] = {}
     reference = datetime.now(tz=timezone.utc)
+    resolved_tz = resolve_tz(tz)
 
     for eid in expand_entities(entity_ids):
-        series = _fetch_hass_entity(eid, period, reference=reference)
+        series = _fetch_hass_entity(eid, period, reference=reference, tz=resolved_tz)
 
         # Determine a friendly label
         state_data = _hass_request(f"/api/states/{eid}")

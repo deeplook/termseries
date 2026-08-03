@@ -462,6 +462,29 @@ class TestFetchHaSeries:
         assert len(references) == 1
         assert next(iter(references)) is not None
 
+    def test_tz_is_resolved_and_threaded_to_fetch_entity(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The tz= kwarg must reach _fetch_hass_entity as a resolved tzinfo,
+        not the raw string, and must not just be silently dropped."""
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_TOKEN", "tok")
+        mocks = self._make_mocks()
+
+        with (
+            patch(
+                "termseries.hass_source.requests.get",
+                side_effect=self._side_effect(mocks),
+            ),
+            patch(
+                "termseries.hass_source._fetch_hass_entity",
+                wraps=_fetch_hass_entity,
+            ) as spy,
+        ):
+            fetch_hass_series(["sensor.temp"], "max", tz="America/Los_Angeles")
+
+        assert str(spy.call_args.kwargs["tz"]) == "America/Los_Angeles"
+
     def test_deduplicates_entity_ids(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")

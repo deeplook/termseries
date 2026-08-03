@@ -482,7 +482,7 @@ class TestPolymarketCommand:
 
         assert result.exit_code == 0
         fetch_mock.assert_called_once_with(
-            ["btc-150k"], "7d", outcome="no", interval="1h", fidelity=5
+            ["btc-150k"], "7d", outcome="no", interval="1h", fidelity=5, tz="UTC"
         )
         assert captured["names"] == ["FAKE"]
 
@@ -515,7 +515,7 @@ class TestCsvCommand:
             result = runner.invoke(app, ["csv", "temp.csv", "--period", "7d"])
 
         assert result.exit_code == 0
-        fetch_mock.assert_called_once_with(["temp.csv"], "7d")
+        fetch_mock.assert_called_once_with(["temp.csv"], "7d", tz="UTC")
         # Labels are the file stems, not the raw paths.
         assert captured["names"] == ["temp"]
 
@@ -545,9 +545,39 @@ class TestHassCommand:
             )
 
         assert result.exit_code == 0
-        fetch_mock.assert_called_once_with(["sensor.temperature"], "30d")
+        fetch_mock.assert_called_once_with(["sensor.temperature"], "30d", tz="UTC")
         detect_mock.assert_called_once_with("sensor.temperature")
         assert captured["value_unit"] == "°C"
+
+    def test_global_tz_flag_is_threaded_to_fetch(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--tz must reach fetch_hass_series, not just chart display."""
+        monkeypatch.chdir(tmp_path)
+        with (
+            patch(
+                "termseries.cli.fetch_hass_series", return_value=_FAKE_DATA
+            ) as fetch_mock,
+            patch("termseries.cli._detect_unit", return_value="value"),
+            patch("termseries.cli._render_png", return_value=_FAKE_PNG),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "--tz",
+                    "America/Los_Angeles",
+                    "hass",
+                    "sensor.temperature",
+                    "--period",
+                    "ytd",
+                ],
+            )
+
+        assert result.exit_code == 0
+        fetch_mock.assert_called_once_with(
+            ["sensor.temperature"], "ytd", tz="America/Los_Angeles"
+        )
 
     def test_hass_interactive_also_autodetects_unit(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

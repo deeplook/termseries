@@ -9,7 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-from termseries.period import parse_period, xlim_now
+from termseries.period import parse_period, resolve_tz, xlim_now
 from termseries.render import _render_png
 from termseries.terminal import (
     _copy_to_clipboard,
@@ -339,7 +339,9 @@ def _build_app(
                     style_override=style_override,
                     tz=tz,
                     line_style=line_style,
-                    xlim=xlim_now(period, data) if anchor_now else None,
+                    xlim=xlim_now(period, data, tz=resolve_tz(tz))
+                    if anchor_now
+                    else None,
                     theme=theme,
                     save_dpi=_save_dpi,
                 )

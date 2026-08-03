@@ -304,7 +304,9 @@ def yahoo(
             ratio=opts["ratio"],
             mode=opts["mode"],
             colors=opts["colors"],
-            fetch_fn=partial(fetch_yahoo_series, interval=interval.value),
+            fetch_fn=partial(
+                fetch_yahoo_series, interval=interval.value, tz=opts["tz"]
+            ),
             style_override=opts["style"],
             reload_interval=opts["reload"],
             tz=opts["tz"],
@@ -316,7 +318,9 @@ def yahoo(
     _debug_echo(f"yahoo: period={period} interval={interval.value} resolved={resolved}")
     typer.echo(f"Fetching {', '.join(tickers)} from Yahoo Finance…", err=True)
     try:
-        data = fetch_yahoo_series(tickers, period, interval=interval.value)
+        data = fetch_yahoo_series(
+            tickers, period, interval=interval.value, tz=opts["tz"]
+        )
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
@@ -402,6 +406,7 @@ def polymarket(
                 outcome=outcome,
                 interval=interval.value,
                 fidelity=fidelity,
+                tz=opts["tz"],
             ),
             style_override=opts["style"],
             reload_interval=opts["reload"],
@@ -422,6 +427,7 @@ def polymarket(
             outcome=outcome,
             interval=interval.value,
             fidelity=fidelity,
+            tz=opts["tz"],
         )
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
@@ -485,7 +491,7 @@ def csv_cmd(
             ratio=opts["ratio"],
             mode=opts["mode"],
             colors=opts["colors"],
-            fetch_fn=fetch_csv_series,
+            fetch_fn=partial(fetch_csv_series, tz=opts["tz"]),
             value_unit=unit,
             style_override=opts["style"],
             reload_interval=opts["reload"],
@@ -498,7 +504,7 @@ def csv_cmd(
 
     typer.echo(f"Reading {', '.join(files)}…", err=True)
     try:
-        data = fetch_csv_series(files, period)
+        data = fetch_csv_series(files, period, tz=opts["tz"])
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
@@ -575,7 +581,7 @@ def hass(
             ratio=opts["ratio"],
             mode=opts["mode"],
             colors=opts["colors"],
-            fetch_fn=fetch_hass_series,
+            fetch_fn=partial(fetch_hass_series, tz=opts["tz"]),
             value_unit=resolved_unit,
             style_override=opts["style"],
             reload_interval=opts["reload"],
@@ -591,7 +597,7 @@ def hass(
             f"Fetching {', '.join(resolved_entities)} from Home Assistant…", err=True
         )
         resolved_unit = unit if unit is not None else _detect_unit(resolved_entities[0])
-        data = fetch_hass_series(resolved_entities, period)
+        data = fetch_hass_series(resolved_entities, period, tz=opts["tz"])
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
