@@ -78,12 +78,18 @@ def _is_iterm2() -> bool:
 
 
 def _is_sixel_terminal() -> bool:
-    """Return True for terminals known to support Sixel graphics."""
+    """Return True for terminals known to support Sixel graphics.
+
+    Plain ``TERM=xterm`` is deliberately excluded: it's the default on most
+    distro builds, which are compiled *without* Sixel support, so treating
+    it as Sixel-capable would dump raw escape sequences to the vast
+    majority of xterm users instead of falling back to a file.
+    """
     term_program = os.environ.get("TERM_PROGRAM", "")
     if term_program in ("WezTerm", "vscode"):
         return True
     term = os.environ.get("TERM", "")
-    return term.startswith("foot") or term.startswith("mlterm") or term == "xterm"
+    return term.startswith("foot") or term.startswith("mlterm")
 
 
 def _png_dimensions(png_bytes: bytes) -> tuple[int, int]:

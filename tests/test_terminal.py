@@ -102,9 +102,10 @@ class TestIsSixelTerminal:
         monkeypatch.setenv("TERM", "mlterm")
         assert _is_sixel_terminal() is True
 
-    def test_xterm_exact(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_xterm_exact_not_matched(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Plain xterm is usually built without Sixel support; don't assume it."""
         monkeypatch.setenv("TERM", "xterm")
-        assert _is_sixel_terminal() is True
+        assert _is_sixel_terminal() is False
 
     def test_xterm_256color_not_matched(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("TERM", "xterm-256color")
