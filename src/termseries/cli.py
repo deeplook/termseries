@@ -357,18 +357,18 @@ def yahoo(
             line_style=opts["line_style"],
             theme=opts["theme"],
         )
+        _output_png(
+            png,
+            list(data.keys()),
+            r,
+            period,
+            copy=opts["copy"],
+            output=opts["output"],
+            protocol=opts["protocol"],
+        )
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
-    _output_png(
-        png,
-        list(data.keys()),
-        r,
-        period,
-        copy=opts["copy"],
-        output=opts["output"],
-        protocol=opts["protocol"],
-    )
 
 
 @app.command(  # type: ignore[misc]
@@ -465,19 +465,19 @@ def polymarket(
             line_style=opts["line_style"],
             theme=opts["theme"],
         )
+        labels = list(data.keys())
+        _output_png(
+            png,
+            labels,
+            r,
+            period,
+            copy=opts["copy"],
+            output=opts["output"],
+            protocol=opts["protocol"],
+        )
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
-    labels = list(data.keys())
-    _output_png(
-        png,
-        labels,
-        r,
-        period,
-        copy=opts["copy"],
-        output=opts["output"],
-        protocol=opts["protocol"],
-    )
 
 
 @app.command(  # type: ignore[misc]
@@ -542,19 +542,19 @@ def csv_cmd(
             xlim=xlim_now(period, data, tz=resolve_tz(opts["tz"])),
             theme=opts["theme"],
         )
+        labels = [Path(f).stem for f in files]
+        _output_png(
+            png,
+            labels,
+            r,
+            period,
+            copy=opts["copy"],
+            output=opts["output"],
+            protocol=opts["protocol"],
+        )
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
-    labels = [Path(f).stem for f in files]
-    _output_png(
-        png,
-        labels,
-        r,
-        period,
-        copy=opts["copy"],
-        output=opts["output"],
-        protocol=opts["protocol"],
-    )
 
 
 @app.command(  # type: ignore[misc]
@@ -634,19 +634,19 @@ def hass(
             line_style=opts["line_style"],
             theme=opts["theme"],
         )
+        labels = list(data.keys())
+        _output_png(
+            png,
+            labels,
+            r,
+            period,
+            copy=opts["copy"],
+            output=opts["output"],
+            protocol=opts["protocol"],
+        )
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
-    labels = list(data.keys())
-    _output_png(
-        png,
-        labels,
-        r,
-        period,
-        copy=opts["copy"],
-        output=opts["output"],
-        protocol=opts["protocol"],
-    )
 
 
 @app.command()  # type: ignore[misc]

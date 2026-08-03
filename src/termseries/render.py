@@ -404,6 +404,15 @@ def _render_png(
     return buf.getvalue()
 
 
+def _write_png_file(path: str, png: bytes) -> None:
+    """Write *png* to *path*, raising a clean RuntimeError on I/O failure."""
+    try:
+        with open(path, "wb") as f:
+            f.write(png)
+    except OSError as exc:
+        raise RuntimeError(f"Could not write to {path}: {exc}") from exc
+
+
 def _output_png(
     png: bytes,
     series_names: list[str],
@@ -450,8 +459,7 @@ def _output_png(
 
     # Named file
     if output not in ("auto", "inline"):
-        with open(output, "wb") as f:
-            f.write(png)
+        _write_png_file(output, png)
         print(f"Wrote plot to {output}")
         return
 
@@ -504,6 +512,5 @@ def _output_png(
 
     # Auto-named file fallback
     out = _auto_output_filename(series_names, period, ratio)
-    with open(out, "wb") as f:
-        f.write(png)
+    _write_png_file(out, png)
     print(f"Wrote plot to {out}")

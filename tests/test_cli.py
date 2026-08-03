@@ -671,6 +671,30 @@ class TestDataCommandBehaviors:
         assert result.exit_code == 1
         assert "Error: Relative mode requires exactly 2 series." in result.output
 
+    def test_output_error_exits_nonzero_with_message_not_a_crash(
+        self,
+        argv: list[str],
+        fetch_target: str,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A _output_png failure (e.g. --output to a nonexistent directory)
+        must be reported cleanly too -- the output step used to be outside
+        the try/except entirely."""
+        monkeypatch.chdir(tmp_path)
+        with (
+            patch(f"termseries.cli.{fetch_target}", return_value=_FAKE_DATA),
+            patch("termseries.cli._detect_unit", return_value="value"),
+            patch("termseries.cli._render_png", return_value=_FAKE_PNG),
+            patch(
+                "termseries.cli._output_png",
+                side_effect=RuntimeError("Could not write to /no/such/dir/out.png"),
+            ),
+        ):
+            result = runner.invoke(app, argv)
+        assert result.exit_code == 1
+        assert "Error: Could not write to /no/such/dir/out.png" in result.output
+
     def test_interactive_flag_launches_tui(
         self,
         argv: list[str],

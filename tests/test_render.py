@@ -261,6 +261,12 @@ class TestOutputPng:
         assert written.exists()
         assert written.read_bytes() == small_png
 
+    def test_named_output_bad_path_raises_runtime_error(self, small_png: bytes) -> None:
+        """A named output path whose parent directory doesn't exist must
+        raise a clean RuntimeError, not a raw FileNotFoundError."""
+        with pytest.raises(RuntimeError, match="Could not write to"):
+            _output_png(small_png, ["A"], (4, 1), "7d", output="/no/such/dir/out.png")
+
     def test_cascade_kitty_before_iterm2(
         self, small_png: bytes, monkeypatch: pytest.MonkeyPatch
     ) -> None:
