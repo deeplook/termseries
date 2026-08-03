@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -73,6 +74,92 @@ def _apply_gaps(data: dict[str, TimeSeries], gaps: str) -> dict[str, TimeSeries]
         return data
     max_gap = None if gaps == "show" else parse_period(gaps)
     return {name: insert_gaps(series, max_gap=max_gap) for name, series in data.items()}
+
+
+def _run_source(
+    ctx: typer.Context,
+    items: list[str],
+    period: str,
+    fetch_fn: Callable[[list[str], str], dict[str, TimeSeries]],
+    *,
+    fetching_message: str,
+    debug_msg: str | None = None,
+    interval_label: str | None = None,
+    value_unit: str | None = None,
+    anchor_now: bool = False,
+    xlim_fn: Callable[[dict[str, TimeSeries]], Any] | None = None,
+    labels_fn: Callable[[dict[str, TimeSeries]], list[str]] | None = None,
+) -> None:
+    """Run the shared fetch -> gaps -> render -> output pipeline for a source.
+
+    Every source command (yahoo, polymarket, csv, hass, ...) shares this
+    pipeline; only the fetch function and a handful of render/TUI options
+    differ between them.
+    """
+    opts = ctx.obj
+
+    if opts["interactive"]:
+        interactive_kwargs: dict[str, Any] = {}
+        if value_unit is not None:
+            interactive_kwargs["value_unit"] = value_unit
+        if anchor_now:
+            interactive_kwargs["anchor_now"] = True
+        _run_interactive(
+            items,
+            period_choices=TUI_PERIOD_CHOICES,
+            period=period,
+            ratio=opts["ratio"],
+            mode=opts["mode"],
+            colors=opts["colors"],
+            fetch_fn=fetch_fn,
+            style_override=opts["style"],
+            reload_interval=opts["reload"],
+            tz=opts["tz"],
+            line_style=opts["line_style"],
+            theme=opts["theme"],
+            **interactive_kwargs,
+        )
+        raise typer.Exit()
+
+    if debug_msg is not None:
+        _debug_echo(debug_msg)
+    typer.echo(fetching_message, err=True)
+    try:
+        data = fetch_fn(items, period)
+        data = _apply_gaps(data, opts["gaps"])
+        r = opts["ratio"] or (4, 1)
+        render_kwargs: dict[str, Any] = {}
+        if value_unit is not None:
+            render_kwargs["value_unit"] = value_unit
+        if interval_label is not None:
+            render_kwargs["interval_label"] = interval_label
+        if xlim_fn is not None:
+            render_kwargs["xlim"] = xlim_fn(data)
+        png = _render_png(
+            data,
+            r,
+            period,
+            color_cycle=opts["colors"],
+            mode=opts["mode"],
+            style_override=opts["style"],
+            tz=opts["tz"],
+            line_style=opts["line_style"],
+            theme=opts["theme"],
+            **render_kwargs,
+        )
+        labels = labels_fn(data) if labels_fn is not None else list(data.keys())
+        _output_png(
+            png,
+            labels,
+            r,
+            period,
+            copy=opts["copy"],
+            output=opts["output"],
+            protocol=opts["protocol"],
+        )
+    except (RuntimeError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from None
 
 
 def _validate_period(value: str) -> str:
@@ -311,64 +398,23 @@ def yahoo(
     ] = YahooInterval.auto,
 ) -> None:
     """Fetch and plot stock data from Yahoo Finance."""
-    opts = ctx.obj
     if interval.value == "auto":
         resolved = yahoo_auto_interval(period)
     else:
         resolved = interval.value
     interval_label = "Daily" if resolved == "1d" else resolved
 
-    if opts["interactive"]:
-        _run_interactive(
-            tickers,
-            period_choices=TUI_PERIOD_CHOICES,
-            period=period,
-            ratio=opts["ratio"],
-            mode=opts["mode"],
-            colors=opts["colors"],
-            fetch_fn=partial(
-                fetch_yahoo_series, interval=interval.value, tz=opts["tz"]
-            ),
-            style_override=opts["style"],
-            reload_interval=opts["reload"],
-            tz=opts["tz"],
-            line_style=opts["line_style"],
-            theme=opts["theme"],
-        )
-        raise typer.Exit()
-
-    _debug_echo(f"yahoo: period={period} interval={interval.value} resolved={resolved}")
-    typer.echo(f"Fetching {', '.join(tickers)} from Yahoo Finance…", err=True)
-    try:
-        data = fetch_yahoo_series(
-            tickers, period, interval=interval.value, tz=opts["tz"]
-        )
-        data = _apply_gaps(data, opts["gaps"])
-        r = opts["ratio"] or (4, 1)
-        png = _render_png(
-            data,
-            r,
-            period,
-            color_cycle=opts["colors"],
-            mode=opts["mode"],
-            style_override=opts["style"],
-            tz=opts["tz"],
-            interval_label=interval_label,
-            line_style=opts["line_style"],
-            theme=opts["theme"],
-        )
-        _output_png(
-            png,
-            list(data.keys()),
-            r,
-            period,
-            copy=opts["copy"],
-            output=opts["output"],
-            protocol=opts["protocol"],
-        )
-    except (RuntimeError, ValueError) as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(1) from None
+    _run_source(
+        ctx,
+        tickers,
+        period,
+        partial(fetch_yahoo_series, interval=interval.value, tz=ctx.obj["tz"]),
+        fetching_message=f"Fetching {', '.join(tickers)} from Yahoo Finance…",
+        debug_msg=(
+            f"yahoo: period={period} interval={interval.value} resolved={resolved}"
+        ),
+        interval_label=interval_label,
+    )
 
 
 @app.command(  # type: ignore[misc]
@@ -410,74 +456,27 @@ def polymarket(
     ] = 1,
 ) -> None:
     """Fetch and plot market price data from Polymarket."""
-    opts = ctx.obj
     resolved = (
         polymarket_auto_interval(period) if interval.value == "auto" else interval.value
     )
 
-    if opts["interactive"]:
-        _run_interactive(
-            markets,
-            period_choices=TUI_PERIOD_CHOICES,
-            period=period,
-            ratio=opts["ratio"],
-            mode=opts["mode"],
-            colors=opts["colors"],
-            fetch_fn=partial(
-                fetch_polymarket_series,
-                outcome=outcome,
-                interval=interval.value,
-                fidelity=fidelity,
-                tz=opts["tz"],
-            ),
-            style_override=opts["style"],
-            reload_interval=opts["reload"],
-            tz=opts["tz"],
-            line_style=opts["line_style"],
-            theme=opts["theme"],
-        )
-        raise typer.Exit()
-
-    _debug_echo(
-        f"polymarket: period={period} interval={interval.value} resolved={resolved}"
-    )
-    typer.echo(f"Fetching {', '.join(markets)} from Polymarket…", err=True)
-    try:
-        data = fetch_polymarket_series(
-            markets,
-            period,
+    _run_source(
+        ctx,
+        markets,
+        period,
+        partial(
+            fetch_polymarket_series,
             outcome=outcome,
             interval=interval.value,
             fidelity=fidelity,
-            tz=opts["tz"],
-        )
-        data = _apply_gaps(data, opts["gaps"])
-        r = opts["ratio"] or (4, 1)
-        png = _render_png(
-            data,
-            r,
-            period,
-            color_cycle=opts["colors"],
-            mode=opts["mode"],
-            style_override=opts["style"],
-            tz=opts["tz"],
-            interval_label=resolved,
-            line_style=opts["line_style"],
-            theme=opts["theme"],
-        )
-        labels = list(data.keys())
-        _output_png(
-            png,
-            labels,
-            r,
-            period,
-            copy=opts["copy"],
-            output=opts["output"],
-            protocol=opts["protocol"],
-        )
-    except (RuntimeError, ValueError) as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(1) from None
+            tz=ctx.obj["tz"],
+        ),
+        fetching_message=f"Fetching {', '.join(markets)} from Polymarket…",
+        debug_msg=(
+            f"polymarket: period={period} interval={interval.value} resolved={resolved}"
+        ),
+        interval_label=resolved,
+    )
 
 
 @app.command(  # type: ignore[misc]
@@ -504,57 +503,19 @@ def csv_cmd(
     unit: Annotated[str, typer.Option(help="Value unit label")] = "value",
 ) -> None:
     """Plot time-series data from local CSV files."""
-    opts = ctx.obj
-    if opts["interactive"]:
-        _run_interactive(
-            files,
-            period_choices=TUI_PERIOD_CHOICES,
-            period=period,
-            ratio=opts["ratio"],
-            mode=opts["mode"],
-            colors=opts["colors"],
-            fetch_fn=partial(fetch_csv_series, tz=opts["tz"]),
-            value_unit=unit,
-            style_override=opts["style"],
-            reload_interval=opts["reload"],
-            tz=opts["tz"],
-            line_style=opts["line_style"],
-            anchor_now=True,
-            theme=opts["theme"],
-        )
-        raise typer.Exit()
+    tz = ctx.obj["tz"]
 
-    typer.echo(f"Reading {', '.join(files)}…", err=True)
-    try:
-        data = fetch_csv_series(files, period, tz=opts["tz"])
-        data = _apply_gaps(data, opts["gaps"])
-        r = opts["ratio"] or (4, 1)
-        png = _render_png(
-            data,
-            r,
-            period,
-            color_cycle=opts["colors"],
-            mode=opts["mode"],
-            value_unit=unit,
-            style_override=opts["style"],
-            tz=opts["tz"],
-            line_style=opts["line_style"],
-            xlim=xlim_now(period, data, tz=resolve_tz(opts["tz"])),
-            theme=opts["theme"],
-        )
-        labels = [Path(f).stem for f in files]
-        _output_png(
-            png,
-            labels,
-            r,
-            period,
-            copy=opts["copy"],
-            output=opts["output"],
-            protocol=opts["protocol"],
-        )
-    except (RuntimeError, ValueError) as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(1) from None
+    _run_source(
+        ctx,
+        files,
+        period,
+        partial(fetch_csv_series, tz=tz),
+        fetching_message=f"Reading {', '.join(files)}…",
+        value_unit=unit,
+        anchor_now=True,
+        xlim_fn=lambda data: xlim_now(period, data, tz=resolve_tz(tz)),
+        labels_fn=lambda _data: [Path(f).stem for f in files],
+    )
 
 
 @app.command(  # type: ignore[misc]
@@ -585,68 +546,23 @@ def hass(
 
     Requires HASS_SERVER and HASS_TOKEN environment variables.
     """
-    opts = ctx.obj
-
-    if opts["interactive"]:
-        try:
-            resolved_entities = expand_entities(entities)
-            resolved_unit = (
-                unit if unit is not None else _detect_unit(resolved_entities[0])
-            )
-        except (RuntimeError, ValueError) as exc:
-            typer.echo(f"Error: {exc}", err=True)
-            raise typer.Exit(1) from None
-        _run_interactive(
-            resolved_entities,
-            period_choices=TUI_PERIOD_CHOICES,
-            period=period,
-            ratio=opts["ratio"],
-            mode=opts["mode"],
-            colors=opts["colors"],
-            fetch_fn=partial(fetch_hass_series, tz=opts["tz"]),
-            value_unit=resolved_unit,
-            style_override=opts["style"],
-            reload_interval=opts["reload"],
-            tz=opts["tz"],
-            line_style=opts["line_style"],
-            theme=opts["theme"],
-        )
-        raise typer.Exit()
-
     try:
         resolved_entities = expand_entities(entities)
-        typer.echo(
-            f"Fetching {', '.join(resolved_entities)} from Home Assistant…", err=True
-        )
         resolved_unit = unit if unit is not None else _detect_unit(resolved_entities[0])
-        data = fetch_hass_series(resolved_entities, period, tz=opts["tz"])
-        data = _apply_gaps(data, opts["gaps"])
-        r = opts["ratio"] or (4, 1)
-        png = _render_png(
-            data,
-            r,
-            period,
-            color_cycle=opts["colors"],
-            mode=opts["mode"],
-            value_unit=resolved_unit,
-            style_override=opts["style"],
-            tz=opts["tz"],
-            line_style=opts["line_style"],
-            theme=opts["theme"],
-        )
-        labels = list(data.keys())
-        _output_png(
-            png,
-            labels,
-            r,
-            period,
-            copy=opts["copy"],
-            output=opts["output"],
-            protocol=opts["protocol"],
-        )
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
+
+    _run_source(
+        ctx,
+        resolved_entities,
+        period,
+        partial(fetch_hass_series, tz=ctx.obj["tz"]),
+        fetching_message=(
+            f"Fetching {', '.join(resolved_entities)} from Home Assistant…"
+        ),
+        value_unit=resolved_unit,
+    )
 
 
 @app.command()  # type: ignore[misc]
