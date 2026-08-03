@@ -336,7 +336,7 @@ def yahoo(
     )
     _output_png(
         png,
-        tickers,
+        list(data.keys()),
         r,
         period,
         copy=opts["copy"],
@@ -560,15 +560,23 @@ def hass(
     opts = ctx.obj
 
     if opts["interactive"]:
+        try:
+            resolved_entities = expand_entities(entities)
+            resolved_unit = (
+                unit if unit is not None else _detect_unit(resolved_entities[0])
+            )
+        except (RuntimeError, ValueError) as exc:
+            typer.echo(f"Error: {exc}", err=True)
+            raise typer.Exit(1) from None
         _run_interactive(
-            entities,
+            resolved_entities,
             period_choices=TUI_PERIOD_CHOICES,
             period=period,
             ratio=opts["ratio"],
             mode=opts["mode"],
             colors=opts["colors"],
             fetch_fn=fetch_hass_series,
-            value_unit=unit if unit is not None else "value",
+            value_unit=resolved_unit,
             style_override=opts["style"],
             reload_interval=opts["reload"],
             tz=opts["tz"],

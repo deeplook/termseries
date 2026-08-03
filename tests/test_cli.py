@@ -415,6 +415,34 @@ class TestValidators:
         assert "termseries" in result.output
 
 
+class TestYahooCommand:
+    def test_output_filename_uses_resolved_tickers_not_raw_input(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Auto-filename must reflect the deduped/uppercased fetched tickers,
+        not the raw (possibly duplicate, differently-cased) CLI arguments."""
+        monkeypatch.chdir(tmp_path)
+        fake_data = {"TSLA": [(datetime(2024, 1, 1, tzinfo=timezone.utc), 100.0)]}
+        captured: dict[str, object] = {}
+
+        def mock_output(
+            png: object, names: object, ratio: object, period: object, **kwargs: object
+        ) -> None:
+            captured["names"] = names
+
+        with (
+            patch("termseries.cli.fetch_yahoo_series", return_value=fake_data),
+            patch("termseries.cli._render_png", return_value=_FAKE_PNG),
+            patch("termseries.cli._output_png", side_effect=mock_output),
+        ):
+            result = runner.invoke(app, ["yahoo", "tsla", "TSLA"])
+
+        assert result.exit_code == 0
+        # Raw input was ["tsla", "TSLA"] (duplicate, mixed case); the fetched/
+        # rendered data only has one deduped "TSLA" series.
+        assert captured["names"] == ["TSLA"]
+
+
 class TestPolymarketCommand:
     def test_polymarket_command_wires_fetch_and_output(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -520,6 +548,23 @@ class TestHassCommand:
         fetch_mock.assert_called_once_with(["sensor.temperature"], "30d")
         detect_mock.assert_called_once_with("sensor.temperature")
         assert captured["value_unit"] == "°C"
+
+    def test_hass_interactive_also_autodetects_unit(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`hass -i` must auto-detect the unit too, not just the one-shot path."""
+        monkeypatch.chdir(tmp_path)
+        with (
+            patch("termseries.cli._run_interactive") as run_tui,
+            patch("termseries.cli._detect_unit", return_value="°C") as detect_mock,
+        ):
+            result = runner.invoke(
+                app, ["-i", "hass", "sensor.temperature", "--period", "30d"]
+            )
+
+        assert result.exit_code == 0
+        detect_mock.assert_called_once_with("sensor.temperature")
+        assert run_tui.call_args.kwargs["value_unit"] == "°C"
 
 
 # ---------------------------------------------------------------------------
