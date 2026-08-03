@@ -84,5 +84,9 @@ def fetch_yahoo_series(
         points = _fetch_closes(ticker, covering, resolved)
         if need_trim:
             points = filter_period(points, period, reference=now, tz=resolved_tz)
+            if not points:
+                raise RuntimeError(
+                    f"{ticker}: no data left after trimming to period={period}."
+                )
         result[ticker] = points
     return result

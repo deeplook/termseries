@@ -101,6 +101,12 @@ class TestReadCsv:
         with pytest.raises(RuntimeError, match="File not found"):
             _read_csv("/nonexistent/path.csv")
 
+    def test_directory_raises_not_a_file(self, tmp_path: Path) -> None:
+        """Passing a directory must raise a clean error, not crash with a
+        raw IsADirectoryError from Path.open()."""
+        with pytest.raises(RuntimeError, match="Not a file"):
+            _read_csv(str(tmp_path))
+
     def test_empty_file_raises(self, tmp_path: Path) -> None:
         f = tmp_path / "empty.csv"
         f.write_text("")
@@ -215,6 +221,17 @@ class TestFetchCsvSeries:
         f.write_text("\n".join(lines) + "\n")
         result = fetch_csv_series([str(f)], "7d")
         assert 7 <= len(result["data"]) <= 8
+
+    def test_period_that_trims_to_nothing_raises_instead_of_empty_series(
+        self, tmp_path: Path
+    ) -> None:
+        """A degenerate period (e.g. 0d) must raise, not silently return an
+        empty series that renders as a blank chart with no error."""
+        f = tmp_path / "data.csv"
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+        f.write_text(f"{yesterday.strftime('%Y-%m-%dT%H:%M:%S+00:00')},10.0\n")
+        with pytest.raises(RuntimeError, match="no data left after trimming"):
+            fetch_csv_series([str(f)], "0d")
 
     def test_label_from_stem(self, tmp_path: Path) -> None:
         f = tmp_path / "my_sensor_data.csv"

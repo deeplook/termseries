@@ -161,6 +161,26 @@ class TestFetchHaEntity:
         assert series[0][1] == 21.5
         assert series[1][1] == 22.0
 
+    def test_period_that_trims_to_nothing_raises_instead_of_empty_series(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A degenerate period (e.g. 0d) must raise, not silently return an
+        empty series that renders as a blank chart with no error."""
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_TOKEN", "tok")
+
+        history = [
+            [
+                {"state": "21.5", "last_changed": _recent_iso(1)},
+            ]
+        ]
+        resp = _mock_response(history)
+        with (
+            patch("termseries.hass_source.requests.get", return_value=resp),
+            pytest.raises(RuntimeError, match="left after trimming"),
+        ):
+            _fetch_hass_entity("sensor.temp", "0d")
+
     def test_empty_history_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")

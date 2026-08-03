@@ -195,7 +195,12 @@ def _fetch_hass_entity(
     # chart doesn't show an artifact (a diagonal line from a stale value).
     points = [(dt, v) for dt, v in points if dt >= start]
 
-    return filter_period(points, period, reference=now, tz=tz)
+    result = filter_period(points, period, reference=now, tz=tz)
+    if not result:
+        raise RuntimeError(
+            f"No data for entity {entity_id} left after trimming to period {period}."
+        )
+    return result
 
 
 # ---------------------------------------------------------------------------

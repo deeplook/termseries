@@ -172,6 +172,22 @@ class TestFetchYahooSeries:
         # After trimming to 14 days we should have fewer than all 36 points
         assert len(result["TSLA"]) < 36
 
+    def test_period_that_trims_to_nothing_raises_instead_of_empty_series(
+        self,
+    ) -> None:
+        """A degenerate period (e.g. 0d) must raise, not silently return an
+        empty series that renders as a blank chart with no error."""
+        import datetime as _dt
+
+        now = datetime.now(timezone.utc)
+        timestamps = [int((now - _dt.timedelta(days=1)).timestamp())]
+        p = _payload(timestamps, [100.0])
+        with (
+            patch("termseries.yahoo.requests.get", return_value=_mock_resp(p)),
+            pytest.raises(RuntimeError, match="no data left after trimming"),
+        ):
+            fetch_yahoo_series(["TSLA"], "0d")
+
     def test_multiple_tickers_share_the_same_trim_reference(self) -> None:
         """Two tickers trimmed in the same call must share one reference time,
         not each anchor to their own last data point (which could differ)."""

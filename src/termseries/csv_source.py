@@ -49,6 +49,8 @@ def _read_csv(path: str) -> TimeSeries:
     p = Path(path)
     if not p.exists():
         raise RuntimeError(f"File not found: {path}")
+    if not p.is_file():
+        raise RuntimeError(f"Not a file: {path}")
 
     rows: TimeSeries = []
     with p.open(newline="") as f:
@@ -131,7 +133,7 @@ def fetch_csv_series(
     timestamp). *tz* controls which timezone to-date periods
     (ytd/mtd/wtd/dtd/htd) anchor their calendar boundary in.
     """
-    now = datetime.now(timezone.utc) if parse_period(period) else None
+    now = datetime.now(timezone.utc) if parse_period(period) is not None else None
     resolved_tz = resolve_tz(tz)
     seen: set[str] = set()
     result: dict[str, TimeSeries] = {}
@@ -144,6 +146,10 @@ def fetch_csv_series(
 
         series = _read_csv(raw_path)
         series = filter_period(series, period, reference=now, tz=resolved_tz)
+        if not series:
+            raise RuntimeError(
+                f"{raw_path}: no data left after trimming to period={period}."
+            )
         label = Path(raw_path).stem
         result[label] = series
 
