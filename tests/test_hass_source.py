@@ -13,6 +13,7 @@ from termseries.hass_source import (
     _detect_unit,
     _fetch_hass_entity,
     _hass_request,
+    expand_entities,
     fetch_hass_series,
 )
 
@@ -261,6 +262,91 @@ class TestDetectUnit:
         resp = _mock_response(state)
         with patch("termseries.hass_source.requests.get", return_value=resp):
             assert _detect_unit("sensor.bare") == "value"
+
+
+# ===================================================================
+# expand_entities
+# ===================================================================
+
+
+class TestExpandEntities:
+    _ALL_STATES = [
+        {"entity_id": "sensor.sciphone_battery_level"},
+        {"entity_id": "sensor.home_int_battery_level"},
+        {"entity_id": "sensor.sciphone_battery_level_2"},
+        {"entity_id": "sensor.living_room_temperature"},
+    ]
+
+    def test_literal_ids_pass_through_without_network(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No wildcard chars -> no /api/states request is made."""
+        with patch(
+            "termseries.hass_source.requests.get",
+            side_effect=AssertionError("should not hit the network"),
+        ):
+            result = expand_entities(["sensor.temp", " sensor.humid "])
+
+        assert result == ["sensor.temp", "sensor.humid"]
+
+    def test_literal_ids_still_deduplicated(self) -> None:
+        assert expand_entities(["sensor.temp", "sensor.temp"]) == ["sensor.temp"]
+
+    def test_glob_pattern_matches_and_is_unanchored(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_TOKEN", "tok")
+        resp = _mock_response(self._ALL_STATES)
+
+        with patch("termseries.hass_source.requests.get", return_value=resp):
+            result = expand_entities(["sensor.*battery_level"])
+
+        assert result == [
+            "sensor.home_int_battery_level",
+            "sensor.sciphone_battery_level",
+            "sensor.sciphone_battery_level_2",
+        ]
+
+    def test_mixes_literal_and_pattern(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_TOKEN", "tok")
+        resp = _mock_response(self._ALL_STATES)
+
+        with patch("termseries.hass_source.requests.get", return_value=resp):
+            result = expand_entities(
+                ["sensor.living_room_temperature", "sensor.*battery_level"]
+            )
+
+        assert result == [
+            "sensor.living_room_temperature",
+            "sensor.home_int_battery_level",
+            "sensor.sciphone_battery_level",
+            "sensor.sciphone_battery_level_2",
+        ]
+
+    def test_no_match_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_TOKEN", "tok")
+        resp = _mock_response(self._ALL_STATES)
+
+        with (
+            patch("termseries.hass_source.requests.get", return_value=resp),
+            pytest.raises(RuntimeError, match="No entities matched"),
+        ):
+            expand_entities(["sensor.nonexistent_*"])
+
+    def test_question_mark_matches_single_char(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_TOKEN", "tok")
+        resp = _mock_response(self._ALL_STATES)
+
+        with patch("termseries.hass_source.requests.get", return_value=resp):
+            result = expand_entities(["sensor.sciphone_battery_level_?"])
+
+        assert result == ["sensor.sciphone_battery_level_2"]
 
 
 # ===================================================================

@@ -132,6 +132,9 @@ termseries hass sensor.living_room_temperature --period 3h
 # Last 30 days with explicit unit
 termseries hass sensor.living_room_temperature --period 30d --unit '°C'
 
+# Glob pattern: plot every matching entity in one call
+termseries hass "sensor.*battery_level" --period 7d
+
 # Interactive TUI with HASS data
 termseries -i hass sensor.power_consumption
 
@@ -177,7 +180,18 @@ the x-axis to the data with no empty space. The `--unit` option sets the
 y-axis label (default: `value`).
 
 The `hass` subcommand uses the same `--period` syntax and auto-detects the unit
-from the entity's attributes.
+from the entity's attributes. Entity IDs may include glob-style patterns
+(`*` matches any run of characters, `?` matches a single character),
+expanded against all entities currently known to Home Assistant:
+
+```bash
+# Plot every sensor whose ID contains "battery_level"
+termseries hass "sensor.*battery_level" --period 7d
+```
+
+Quote patterns so your shell doesn't expand them first. The match isn't
+anchored to the end, so `sensor.*battery_level` also matches
+`sensor.phone_battery_level_2`.
 
 ## Shared Options
 

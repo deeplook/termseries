@@ -10,6 +10,7 @@ REST API.  Connection is configured through environment variables:
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -58,6 +59,67 @@ def _hass_request(path: str) -> Any:
             f"Home Assistant API returned HTTP {resp.status_code} for {path}"
         )
     return resp.json()
+
+
+# ---------------------------------------------------------------------------
+# Entity ID pattern expansion
+# ---------------------------------------------------------------------------
+
+_PATTERN_CHARS = re.compile(r"[*?]")
+
+
+def _is_pattern(entity_id: str) -> bool:
+    return bool(_PATTERN_CHARS.search(entity_id))
+
+
+def _pattern_to_regex(pattern: str) -> re.Pattern[str]:
+    """Build an unanchored regex from a shell-glob-like pattern.
+
+    ``*`` matches any run of characters and ``?`` matches a single
+    character; everything else is matched literally. Unlike ``fnmatch``,
+    the match is *not* anchored to the full entity ID, so a pattern like
+    ``sensor.*battery_level`` also matches a trailing suffix such as
+    ``sensor.phone_battery_level_2``.
+    """
+    parts = re.split(r"([*?])", pattern)
+    regex = "".join(
+        ".*" if part == "*" else "." if part == "?" else re.escape(part)
+        for part in parts
+    )
+    return re.compile(regex)
+
+
+def expand_entities(entity_ids: list[str]) -> list[str]:
+    """Expand glob-style patterns (``*``, ``?``) against live HA entity IDs.
+
+    Literal entity IDs (no wildcard characters) pass through unchanged.
+    Patterns are resolved against the full list of entities currently known
+    to Home Assistant, in one ``/api/states`` request shared across all
+    patterns. Raises ``RuntimeError`` if a pattern matches nothing.
+    """
+    all_ids: list[str] = []
+    if any(_is_pattern(e) for e in entity_ids):
+        states = _hass_request("/api/states")
+        all_ids = sorted(s["entity_id"] for s in states)
+
+    resolved: list[str] = []
+    seen: set[str] = set()
+    for raw in entity_ids:
+        eid = raw.strip()
+        if _is_pattern(eid):
+            regex = _pattern_to_regex(eid)
+            matches = [m for m in all_ids if regex.search(m)]
+            if not matches:
+                raise RuntimeError(f"No entities matched pattern {eid!r}.")
+            for m in matches:
+                if m not in seen:
+                    seen.add(m)
+                    resolved.append(m)
+        elif eid not in seen:
+            seen.add(eid)
+            resolved.append(eid)
+
+    return resolved
 
 
 # ---------------------------------------------------------------------------
@@ -148,17 +210,12 @@ def fetch_hass_series(entity_ids: list[str], period: str) -> dict[str, TimeSerie
 
     Conforms to the ``fetch_fn`` signature used by the TUI and CLI.
     Labels use the ``friendly_name`` attribute when available, falling
-    back to the raw *entity_id*.
+    back to the raw *entity_id*. Entity IDs may include glob-style
+    patterns (``*``, ``?``); see :func:`expand_entities`.
     """
-    seen: set[str] = set()
     result: dict[str, TimeSeries] = {}
 
-    for eid in entity_ids:
-        eid = eid.strip()
-        if eid in seen:
-            continue
-        seen.add(eid)
-
+    for eid in expand_entities(entity_ids):
         series = _fetch_hass_entity(eid, period)
 
         # Determine a friendly label

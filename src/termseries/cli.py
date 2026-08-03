@@ -17,7 +17,7 @@ from termseries.detect import (
     supports_sixel,
 )
 from termseries.gaps import insert_gaps
-from termseries.hass_source import _detect_unit, fetch_hass_series
+from termseries.hass_source import _detect_unit, expand_entities, fetch_hass_series
 from termseries.period import (
     TUI_PERIOD_CHOICES,
     parse_period,
@@ -577,10 +577,13 @@ def hass(
         )
         raise typer.Exit()
 
-    typer.echo(f"Fetching {', '.join(entities)} from Home Assistant…", err=True)
     try:
-        resolved_unit = unit if unit is not None else _detect_unit(entities[0])
-        data = fetch_hass_series(entities, period)
+        resolved_entities = expand_entities(entities)
+        typer.echo(
+            f"Fetching {', '.join(resolved_entities)} from Home Assistant…", err=True
+        )
+        resolved_unit = unit if unit is not None else _detect_unit(resolved_entities[0])
+        data = fetch_hass_series(resolved_entities, period)
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
