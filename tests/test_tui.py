@@ -314,6 +314,43 @@ class TestPeriodSelect:
                 assert pilot.app.query_one("#custom-period", Input).display is False
 
 
+class TestErrorRecovery:
+    async def test_error_from_bad_ticker_does_not_swallow_next_period_change(
+        self,
+    ) -> None:
+        """A fetch error unrelated to Mode must not leave the revert-guard
+        stuck, which would silently swallow the next real dropdown change."""
+        calls: list[str] = []
+
+        def flaky_fetch(cols: list[str], period: str) -> dict:  # type: ignore[type-arg]
+            if cols == ["BAD"]:
+                raise RuntimeError("bad ticker")
+            calls.append(period)
+            return {c: make_series() for c in cols}
+
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app(fetch_fn=flaky_fetch).run_test() as pilot:
+                await pilot.pause()
+                inp = pilot.app.query_one("#tickers", Input)
+                await pilot.click("#tickers")
+                inp.clear()
+                inp.value = "BAD"
+                await pilot.press("enter")
+                await pilot.pause()
+                assert pilot.app.is_running
+
+                # Fix the ticker so the *next* trigger would succeed if it
+                # actually fires -- isolates the revert-guard bug from the
+                # unrelated fact that "BAD" keeps failing.
+                inp.value = "TSLA"
+
+                # A subsequent, unrelated Period change must still take effect.
+                pilot.app.query(Select)[0].value = "1mo"
+                await pilot.pause()
+
+        assert "1mo" in calls
+
+
 class TestResize:
     async def test_resize_schedules_debounced_rerender(self) -> None:
         """A resize after data has loaded arms the debounce timer."""

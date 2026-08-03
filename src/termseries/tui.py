@@ -345,9 +345,14 @@ def _build_app(
                 )
             except (ValueError, RuntimeError) as e:
                 self.notify(str(e), severity="warning")
-                self._reverting = True
                 mode_select = self.query(Select)[2]
-                mode_select.value = self._last_mode
+                # Only arm the revert guard if this assignment will actually
+                # change the value: Select.value doesn't emit Changed for a
+                # no-op assignment, so _reverting would otherwise get stuck
+                # True and silently swallow the next real dropdown change.
+                if mode_select.value != self._last_mode:
+                    self._reverting = True
+                    mode_select.value = self._last_mode
                 return
             self._last_data = data
             self._last_mode = mode or "absolute"
