@@ -119,7 +119,7 @@ def filter_period(
     Pass an explicit value (e.g. ``datetime.now()``) to anchor the
     window to a fixed point so that multiple series share the same range.
     """
-    cutoff = _to_date_cutoff(period)
+    cutoff = _to_date_cutoff(period, now=reference)
     if cutoff is not None:
         return [(dt, v) for dt, v in series if dt >= cutoff]
     delta = parse_period(period)

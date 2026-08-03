@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from termseries.yahoo import _fetch_closes, fetch_yahoo_series
 
@@ -72,6 +73,26 @@ class TestFetchCloses:
         with (
             patch("termseries.yahoo.requests.get", return_value=_mock_resp(p)),
             pytest.raises(RuntimeError, match="no close data"),
+        ):
+            _fetch_closes("TSLA", "1d")
+
+    def test_connection_error_wrapped_as_runtime_error(self) -> None:
+        """A network failure must surface as RuntimeError, not a raw traceback."""
+        with (
+            patch(
+                "termseries.yahoo.requests.get",
+                side_effect=requests.ConnectionError("offline"),
+            ),
+            pytest.raises(RuntimeError, match="Yahoo Finance request failed"),
+        ):
+            _fetch_closes("TSLA", "1d")
+
+    def test_http_error_wrapped_as_runtime_error(self) -> None:
+        resp = MagicMock()
+        resp.raise_for_status.side_effect = requests.HTTPError("500 Server Error")
+        with (
+            patch("termseries.yahoo.requests.get", return_value=resp),
+            pytest.raises(RuntimeError, match="Yahoo Finance request failed"),
         ):
             _fetch_closes("TSLA", "1d")
 
@@ -150,3 +171,19 @@ class TestFetchYahooSeries:
             result = fetch_yahoo_series(["TSLA"], "14d")
         # After trimming to 14 days we should have fewer than all 36 points
         assert len(result["TSLA"]) < 36
+
+    def test_multiple_tickers_share_the_same_trim_reference(self) -> None:
+        """Two tickers trimmed in the same call must share one reference time,
+        not each anchor to their own last data point (which could differ)."""
+        p = self._simple_payload()
+        with (
+            patch("termseries.yahoo.requests.get", return_value=_mock_resp(p)),
+            patch(
+                "termseries.yahoo.filter_period", wraps=lambda pts, *a, **kw: pts
+            ) as mock_filter,
+        ):
+            fetch_yahoo_series(["TSLA", "AAPL"], "14d")
+        assert mock_filter.call_count == 2
+        references = {call.kwargs["reference"] for call in mock_filter.call_args_list}
+        assert len(references) == 1
+        assert next(iter(references)) is not None

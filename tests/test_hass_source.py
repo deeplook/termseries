@@ -436,6 +436,32 @@ class TestFetchHaSeries:
         assert "Living Room Temperature" in result
         assert "Bedroom Humidity" in result
 
+    def test_multiple_entities_share_the_same_reference(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Two entities fetched in one call must share one reference time,
+        not each anchor independently to their own request-time 'now'."""
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_TOKEN", "tok")
+        mocks = self._make_mocks()
+
+        with (
+            patch(
+                "termseries.hass_source.requests.get",
+                side_effect=self._side_effect(mocks),
+            ),
+            patch(
+                "termseries.hass_source._fetch_hass_entity",
+                wraps=_fetch_hass_entity,
+            ) as spy,
+        ):
+            fetch_hass_series(["sensor.temp", "sensor.humid"], "max")
+
+        assert spy.call_count == 2
+        references = {call.kwargs["reference"] for call in spy.call_args_list}
+        assert len(references) == 1
+        assert next(iter(references)) is not None
+
     def test_deduplicates_entity_ids(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")

@@ -127,19 +127,23 @@ def expand_entities(entity_ids: list[str]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _fetch_hass_entity(entity_id: str, period: str) -> TimeSeries:
+def _fetch_hass_entity(
+    entity_id: str, period: str, *, reference: datetime | None = None
+) -> TimeSeries:
     """Fetch history for a single HA entity and return a sorted TimeSeries.
 
     *period* is a :class:`LastPeriod` value string (e.g. ``"7d"``).
+    *reference* anchors both the request window and the final trim; pass
+    the same value across entities in one call so they share a range.
     """
+    now = reference if reference is not None else datetime.now(tz=timezone.utc)
     delta = parse_period(period)
-    if delta is None:
+    if delta is None:  # noqa: SIM108 -- if/else reads clearer with this comment
         # "max" — request a very large window (10 years)
         start = datetime(2015, 1, 1, tzinfo=timezone.utc)
     else:
-        start = datetime.now(tz=timezone.utc) - delta
+        start = now - delta
 
-    now = datetime.now(tz=timezone.utc)
     start_iso = start.strftime("%Y-%m-%dT%H:%M:%SZ")
     end_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     path = (
@@ -183,7 +187,7 @@ def _fetch_hass_entity(entity_id: str, period: str) -> TimeSeries:
     # chart doesn't show an artifact (a diagonal line from a stale value).
     points = [(dt, v) for dt, v in points if dt >= start]
 
-    return filter_period(points, period)
+    return filter_period(points, period, reference=now)
 
 
 # ---------------------------------------------------------------------------
@@ -214,9 +218,10 @@ def fetch_hass_series(entity_ids: list[str], period: str) -> dict[str, TimeSerie
     patterns (``*``, ``?``); see :func:`expand_entities`.
     """
     result: dict[str, TimeSeries] = {}
+    reference = datetime.now(tz=timezone.utc)
 
     for eid in expand_entities(entity_ids):
-        series = _fetch_hass_entity(eid, period)
+        series = _fetch_hass_entity(eid, period, reference=reference)
 
         # Determine a friendly label
         state_data = _hass_request(f"/api/states/{eid}")

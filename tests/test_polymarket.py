@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -23,6 +23,12 @@ def _mock_resp(payload: object) -> MagicMock:
     resp.json.return_value = payload
     resp.raise_for_status.return_value = None
     return resp
+
+
+def _recent_ts(hours_ago: float = 1) -> int:
+    """Return a Unix epoch *hours_ago* hours before now (fresh, not fixed)."""
+    dt = datetime.now(tz=timezone.utc) - timedelta(hours=hours_ago)
+    return int(dt.timestamp())
 
 
 class TestResolveMarketToken:
@@ -189,7 +195,7 @@ class TestFetchPolymarketSeries:
             "clobTokenIds": '["1001", "1002"]',
             "outcomes": '["Yes", "No"]',
         }
-        history_payload = {"history": [{"t": 1_700_000_000, "p": 0.61}]}
+        history_payload = {"history": [{"t": _recent_ts(1), "p": 0.61}]}
 
         with patch(
             "termseries.polymarket.requests.get",
@@ -238,8 +244,8 @@ class TestFetchPolymarketSeries:
         }
         history_payload = {
             "history": [
-                {"t": 1_700_000_000, "p": 0.10},
-                {"t": 1_700_700_000, "p": 0.20},
+                {"t": _recent_ts(200), "p": 0.10},
+                {"t": _recent_ts(1), "p": 0.20},
             ]
         }
 
@@ -271,8 +277,8 @@ class TestFetchPolymarketSeries:
                 },
             ]
         }
-        history_a = {"history": [{"t": 1_700_000_000, "p": 0.61}]}
-        history_b = {"history": [{"t": 1_700_000_000, "p": 0.24}]}
+        history_a = {"history": [{"t": _recent_ts(1), "p": 0.61}]}
+        history_b = {"history": [{"t": _recent_ts(1), "p": 0.24}]}
 
         with patch(
             "termseries.polymarket._get_json",
@@ -286,6 +292,48 @@ class TestFetchPolymarketSeries:
             data = fetch_polymarket_series(["winner-event"], "30d")
 
         assert list(data) == ["candidate-a: Yes", "candidate-b: Yes"]
+
+    def test_multiple_markets_share_the_same_trim_reference(self) -> None:
+        """Two markets trimmed in one call must share one reference time,
+        not each anchor to their own last data point (which could differ)."""
+        event_payload = {
+            "markets": [
+                {
+                    "slug": "candidate-a",
+                    "clobTokenIds": '["1001", "1002"]',
+                    "outcomes": '["Yes", "No"]',
+                },
+                {
+                    "slug": "candidate-b",
+                    "clobTokenIds": '["2001", "2002"]',
+                    "outcomes": '["Yes", "No"]',
+                },
+            ]
+        }
+        history_a = {"history": [{"t": _recent_ts(1), "p": 0.61}]}
+        history_b = {"history": [{"t": _recent_ts(1), "p": 0.24}]}
+
+        with (
+            patch(
+                "termseries.polymarket._get_json",
+                side_effect=[
+                    RuntimeError("404 Client Error"),
+                    event_payload,
+                    history_a,
+                    history_b,
+                ],
+            ),
+            patch(
+                "termseries.polymarket.filter_period",
+                wraps=lambda pts, *a, **kw: pts,
+            ) as mock_filter,
+        ):
+            fetch_polymarket_series(["winner-event"], "30d")
+
+        assert mock_filter.call_count == 2
+        references = {call.kwargs["reference"] for call in mock_filter.call_args_list}
+        assert len(references) == 1
+        assert next(iter(references)) is not None
 
     def test_skips_markets_with_no_history_if_others_have_data(self) -> None:
         event_payload = {
@@ -302,7 +350,7 @@ class TestFetchPolymarketSeries:
                 },
             ]
         }
-        history_a = {"history": [{"t": 1_700_000_000, "p": 0.61}]}
+        history_a = {"history": [{"t": _recent_ts(1), "p": 0.61}]}
         empty_history: dict[str, list[object]] = {"history": []}
 
         with patch(

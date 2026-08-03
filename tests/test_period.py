@@ -302,6 +302,34 @@ class TestFilterPeriod:
     def test_to_date_empty_series(self) -> None:
         assert filter_period([], "ytd") == []
 
+    def test_ytd_honors_explicit_reference(self) -> None:
+        """An explicit reference must anchor ytd/dtd/etc, not live datetime.now().
+
+        Without this, multiple series filtered in the same call (each with an
+        explicit shared reference) could get inconsistent cutoffs depending on
+        exactly when each call happens to execute.
+        """
+        reference = datetime(2023, 6, 15, 12, 0, tzinfo=timezone.utc)
+        jan1_2023 = datetime(2023, 1, 1, tzinfo=timezone.utc)
+        series = [
+            (datetime(2022, 12, 31, tzinfo=timezone.utc), 1.0),  # before ref's year
+            (jan1_2023, 2.0),  # included
+            (reference, 3.0),  # included
+        ]
+        filtered = filter_period(series, "ytd", reference=reference)
+        assert filtered == [(jan1_2023, 2.0), (reference, 3.0)]
+
+    def test_dtd_honors_explicit_reference(self) -> None:
+        reference = datetime(2023, 6, 15, 18, 0, tzinfo=timezone.utc)
+        today_start = datetime(2023, 6, 15, 0, 0, tzinfo=timezone.utc)
+        series = [
+            (datetime(2023, 6, 14, 23, 0, tzinfo=timezone.utc), 1.0),  # yesterday
+            (today_start, 2.0),  # included
+            (reference, 3.0),  # included
+        ]
+        filtered = filter_period(series, "dtd", reference=reference)
+        assert filtered == [(today_start, 2.0), (reference, 3.0)]
+
 
 # ===================================================================
 # xlim_now

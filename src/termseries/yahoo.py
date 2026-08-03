@@ -18,7 +18,11 @@ def _fetch_closes(
         f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
         f"?range={period}&interval={interval}"
     )
-    resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+    try:
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Yahoo Finance request failed for {ticker}: {exc}") from exc
     payload = resp.json()
 
     result = (payload.get("chart") or {}).get("result") or []
@@ -58,6 +62,7 @@ def fetch_yahoo_series(
     resolved = yahoo_auto_interval(period) if interval == "auto" else interval
     covering = yahoo_covering_range(period)
     need_trim = covering != period
+    now = datetime.now(timezone.utc) if need_trim else None
 
     tickers = list(dict.fromkeys(t.strip().upper() for t in tickers if t.strip()))
     if not tickers:
@@ -69,6 +74,6 @@ def fetch_yahoo_series(
     for ticker in tickers:
         points = _fetch_closes(ticker, covering, resolved)
         if need_trim:
-            points = filter_period(points, period)
+            points = filter_period(points, period, reference=now)
         result[ticker] = points
     return result

@@ -331,6 +331,7 @@ def fetch_polymarket_series(
         polymarket_covering_range(period) if interval == "auto" else interval
     )
     need_trim = resolved_interval != period and period != "max"
+    now = datetime.now(timezone.utc) if need_trim else None
 
     result: dict[str, TimeSeries] = {}
     for slug in slugs:
@@ -381,7 +382,7 @@ def fetch_polymarket_series(
                     raise
                 continue
             if need_trim:
-                series = filter_period(series, period)
+                series = filter_period(series, period, reference=now)
             if not series:
                 continue
             result[f"{_display_market_name(payload)}: {label}"] = series
