@@ -88,6 +88,21 @@ class TestRenderPng:
         png = _render_png(series, (4, 1), "7d", mode="returns")
         assert png[:8] == PNG_SIGNATURE
 
+    @pytest.mark.parametrize("mode", ["indexed", "drawdown", "returns"])
+    def test_zero_value_does_not_crash(self, mode: str) -> None:
+        """A series that legitimately touches 0 must render, not raise."""
+        from datetime import datetime, timezone
+
+        series = {
+            "A": [
+                (datetime(2024, 1, 1, tzinfo=timezone.utc), 0.0),
+                (datetime(2024, 1, 2, tzinfo=timezone.utc), 10.0),
+                (datetime(2024, 1, 3, tzinfo=timezone.utc), 20.0),
+            ]
+        }
+        png = _render_png(series, (4, 1), "7d", mode=mode)
+        assert png[:8] == PNG_SIGNATURE
+
     def test_mode_relative(self) -> None:
         series = {"A": make_series(base=100), "B": make_series(base=50)}
         png = _render_png(series, (4, 1), "7d", mode="relative")
@@ -107,6 +122,24 @@ class TestRenderPng:
         series = {"A": make_series()}
         with pytest.raises(ValueError, match="exactly 2"):
             _render_png(series, (4, 1), "7d", mode="relative")
+
+    def test_relative_wrong_count_does_not_leak_figure(self) -> None:
+        """A validation error after fig creation must still close the figure."""
+        series = {"A": make_series()}
+        open_before = len(plt.get_fignums())
+        with pytest.raises(ValueError, match="exactly 2"):
+            _render_png(series, (4, 1), "7d", mode="relative")
+        assert len(plt.get_fignums()) == open_before
+
+    def test_relative_no_overlap_does_not_leak_figure(self) -> None:
+        from datetime import datetime, timezone
+
+        series_a = [(datetime(2024, 1, 1, tzinfo=timezone.utc), 100.0)]
+        series_b = [(datetime(2020, 1, 1, tzinfo=timezone.utc), 200.0)]
+        open_before = len(plt.get_fignums())
+        with pytest.raises(RuntimeError, match="No overlapping dates"):
+            _render_png({"A": series_a, "B": series_b}, (4, 1), "7d", mode="relative")
+        assert len(plt.get_fignums()) == open_before
 
     def test_empty_series(self) -> None:
         with pytest.raises(ValueError, match="No data"):
@@ -397,6 +430,23 @@ class TestTransforms:
         assert math.isnan(ys[1])
         assert ys[2] == pytest.approx(-20.0)  # peak stays at 100
         assert ys[3] == pytest.approx(-10.0)
+
+    # --- zero-division guards (a legitimate 0 reading must not crash) ---
+
+    def test_indexed_zero_base_yields_nan_not_crash(self) -> None:
+        _, ys = _transform_indexed([1, 2, 3], [0, 10, 20])
+        assert all(math.isnan(y) for y in ys)
+
+    def test_drawdown_zero_peak_yields_nan_not_crash(self) -> None:
+        _, ys = _transform_drawdown([1, 2, 3], [0, 0, 5])
+        assert math.isnan(ys[0])
+        assert math.isnan(ys[1])
+        assert ys[2] == pytest.approx(0.0)  # peak became 5, at peak
+
+    def test_returns_zero_prev_yields_nan_not_crash(self) -> None:
+        _, ys = _transform_returns([1, 2, 3], [0, 10, 20])
+        assert math.isnan(ys[0])  # 10 / 0
+        assert ys[1] == pytest.approx(100.0)  # 20 / 10
 
     def test_cumulative_nan_skipped(self) -> None:
         _, ys = _transform_cumulative([1, 2, 3, 4], [10, float("nan"), 20, 30])

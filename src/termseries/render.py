@@ -93,6 +93,9 @@ def _transform_indexed(
     if not ys:
         return list(xs), list(ys)
     base = ys[0]
+    if base == 0 or math.isnan(base):
+        # No meaningful "% of start" when the baseline is 0 or missing.
+        return list(xs), [float("nan")] * len(ys)
     return list(xs), [100.0 * y / base for y in ys]
 
 
@@ -108,7 +111,7 @@ def _transform_drawdown(
             dd.append(float("nan"))
         else:
             peak = y if peak is None else max(peak, y)
-            dd.append((y / peak - 1.0) * 100.0)
+            dd.append(float("nan") if peak == 0 else (y / peak - 1.0) * 100.0)
     return list(xs), dd
 
 
@@ -117,7 +120,14 @@ def _transform_returns(
 ) -> tuple[list[Any], list[float]]:
     if len(ys) < 2:
         return list(xs), list(ys)
-    return list(xs[1:]), [(ys[i] / ys[i - 1] - 1.0) * 100.0 for i in range(1, len(ys))]
+    returns: list[float] = []
+    for i in range(1, len(ys)):
+        prev = ys[i - 1]
+        if prev == 0 or math.isnan(prev) or math.isnan(ys[i]):
+            returns.append(float("nan"))
+        else:
+            returns.append((ys[i] / prev - 1.0) * 100.0)
+    return list(xs[1:]), returns
 
 
 def _transform_cumulative(
@@ -238,161 +248,165 @@ def _render_png(
     fig, ax = plt.subplots(
         figsize=(width_in, height_in), constrained_layout=not crowded_legend
     )
+    try:
+        _ds_map = {
+            "step-pre": "steps-pre",
+            "step-post": "steps-post",
+            "step-mid": "steps-mid",
+        }
+        ds = _ds_map.get(line_style, "default")
 
-    _ds_map = {
-        "step-pre": "steps-pre",
-        "step-post": "steps-post",
-        "step-mid": "steps-mid",
-    }
-    ds = _ds_map.get(line_style, "default")
-
-    if mode == "relative":
-        if len(names) != 2:
-            raise ValueError(
-                "Relative mode requires exactly 2 series (e.g. AAPL MSFT)."
-            )
-        pts_a = series[names[0]]
-        pts_b = series[names[1]]
-        closes_a = {dt.astimezone(target_tz).date(): c for dt, c in pts_a}
-        closes_b = {dt.astimezone(target_tz).date(): c for dt, c in pts_b}
-        common = sorted(closes_a.keys() & closes_b.keys())
-        if not common:
-            raise RuntimeError(f"No overlapping dates for {names[0]} and {names[1]}.")
-        xs = common
-        ys = [closes_a[d] / closes_b[d] for d in common]
-        n = len(xs)
-        marker = "o" if n <= 100 else None
-        ms = max(2, 8 - n // 15)
-        ax.plot(
-            # matplotlib accepts date/datetime x-values at runtime, but its stubs
-            # only type the numeric/array overloads.
-            xs,  # type: ignore[arg-type]
-            ys,
-            label=f"{display_names[names[0]]}/{display_names[names[1]]}",
-            marker=marker,
-            markersize=ms,
-            drawstyle=ds,
-        )
-    else:
-        for name, points in series.items():
-            xs = [dt.astimezone(target_tz) for dt, _ in points]
-            ys = [close for _, close in points]
-            transform = _TRANSFORMS.get(mode)
-            if transform is not None:
-                xs, ys = transform(xs, ys)
+        if mode == "relative":
+            if len(names) != 2:
+                raise ValueError(
+                    "Relative mode requires exactly 2 series (e.g. AAPL MSFT)."
+                )
+            pts_a = series[names[0]]
+            pts_b = series[names[1]]
+            closes_a = {dt.astimezone(target_tz).date(): c for dt, c in pts_a}
+            closes_b = {dt.astimezone(target_tz).date(): c for dt, c in pts_b}
+            common = sorted(closes_a.keys() & closes_b.keys())
+            if not common:
+                raise RuntimeError(
+                    f"No overlapping dates for {names[0]} and {names[1]}."
+                )
+            xs = common
+            ys = [closes_a[d] / closes_b[d] for d in common]
             n = len(xs)
             marker = "o" if n <= 100 else None
             ms = max(2, 8 - n // 15)
             ax.plot(
-                # See the note above: date/datetime x-values are runtime-valid but
-                # untyped in matplotlib's stubs.
+                # matplotlib accepts date/datetime x-values at runtime, but its stubs
+                # only type the numeric/array overloads.
                 xs,  # type: ignore[arg-type]
                 ys,
-                label=display_names[name],
+                label=f"{display_names[names[0]]}/{display_names[names[1]]}",
                 marker=marker,
                 markersize=ms,
                 drawstyle=ds,
             )
-    if mode == "log":
-        ax.set_yscale("log")
+        else:
+            for name, points in series.items():
+                xs = [dt.astimezone(target_tz) for dt, _ in points]
+                ys = [close for _, close in points]
+                transform = _TRANSFORMS.get(mode)
+                if transform is not None:
+                    xs, ys = transform(xs, ys)
+                n = len(xs)
+                marker = "o" if n <= 100 else None
+                ms = max(2, 8 - n // 15)
+                ax.plot(
+                    # See the note above: date/datetime x-values are runtime-valid but
+                    # untyped in matplotlib's stubs.
+                    xs,  # type: ignore[arg-type]
+                    ys,
+                    label=display_names[name],
+                    marker=marker,
+                    markersize=ms,
+                    drawstyle=ds,
+                )
+        if mode == "log":
+            ax.set_yscale("log")
 
-    if xlim is not None:
-        left, right = xlim
-        # datetime bounds are runtime-valid but untyped in matplotlib's set_xlim stub.
-        ax.set_xlim(left.astimezone(target_tz), right.astimezone(target_tz))  # type: ignore[arg-type]
+        if xlim is not None:
+            left, right = xlim
+            # datetime bounds are runtime-valid but untyped in matplotlib's
+            # set_xlim stub.
+            ax.set_xlim(left.astimezone(target_tz), right.astimezone(target_tz))  # type: ignore[arg-type]
 
-    is_stock = value_unit == "USD"
-    title_labels = {
-        "absolute": "Close" if is_stock else "",
-        "indexed": "Indexed",
-        "log": "Close (log)" if is_stock else "Log",
-        "drawdown": "Drawdown",
-        "returns": f"{interval_label} Returns",
-        "relative": f"{names[0]}/{names[1]}" if mode == "relative" else "",
-        "cumulative": "Cumulative",
-        "delta": f"{interval_label} Delta",
-    }
-    prefix = title_labels.get(mode, "")
-    if len(names) <= 3 and all(len(display_names[name]) <= 24 for name in names):
-        names_str = ", ".join(display_names[name] for name in names)
-    else:
-        names_str = f"{len(names)} series"
-    if prefix:
-        ax.set_title(f"{prefix} ({period_label}): {names_str}")
-    else:
-        ax.set_title(f"{names_str} ({period_label})")
-    tz_label = "UTC" if tz == "UTC" else "local" if tz == "local" else tz
-    ax.set_xlabel(f"Date ({tz_label})")
-    ylabel = {
-        "absolute": f"Close ({value_unit})" if is_stock else value_unit,
-        "indexed": "% of start",
-        "log": f"Close ({value_unit}, log)" if is_stock else f"{value_unit} (log)",
-        "drawdown": "% from peak",
-        "returns": f"{interval_label} change (%)",
-        "relative": f"{names[0]}/{names[1]} ratio" if mode == "relative" else "",
-        "cumulative": f"Cumulative ({value_unit})",
-        "delta": f"{interval_label} change ({value_unit})",
-    }
-    ax.set_ylabel(ylabel.get(mode, value_unit))
-    legend: Any = None
-    if legend_placement == "outside":
-        legend = ax.legend(
-            ncols=legend_cols,
-            loc="upper center",
-            bbox_to_anchor=(0.5, -0.32),
-            fontsize=max(7, 10 - legend_rows // 2),
-            frameon=True,
-        )
-        fig.subplots_adjust(bottom=min(0.52, 0.16 + 0.08 * legend_rows))
-    elif legend_placement == "inside-top-left":
-        ax.legend(
-            ncols=legend_cols,
-            loc="upper left",
-            bbox_to_anchor=(0.02, 0.98),
-            fontsize=9,
-            frameon=True,
-            borderaxespad=0.0,
-        )
-    elif legend_placement == "inside-left":
-        ax.legend(
-            ncols=legend_cols,
-            loc="center left",
-            bbox_to_anchor=(0.02, 0.5),
-            fontsize=max(8, 10 - max(0, legend_rows - 4)),
-            frameon=True,
-            borderaxespad=0.0,
-        )
-    else:
-        ax.legend(
-            ncols=legend_cols,
-            loc="best",
-            fontsize=max(8, 10 - max(0, legend_rows - 1)),
-            frameon=True,
-        )
-    fig.autofmt_xdate()
+        is_stock = value_unit == "USD"
+        title_labels = {
+            "absolute": "Close" if is_stock else "",
+            "indexed": "Indexed",
+            "log": "Close (log)" if is_stock else "Log",
+            "drawdown": "Drawdown",
+            "returns": f"{interval_label} Returns",
+            "relative": f"{names[0]}/{names[1]}" if mode == "relative" else "",
+            "cumulative": "Cumulative",
+            "delta": f"{interval_label} Delta",
+        }
+        prefix = title_labels.get(mode, "")
+        if len(names) <= 3 and all(len(display_names[name]) <= 24 for name in names):
+            names_str = ", ".join(display_names[name] for name in names)
+        else:
+            names_str = f"{len(names)} series"
+        if prefix:
+            ax.set_title(f"{prefix} ({period_label}): {names_str}")
+        else:
+            ax.set_title(f"{names_str} ({period_label})")
+        tz_label = "UTC" if tz == "UTC" else "local" if tz == "local" else tz
+        ax.set_xlabel(f"Date ({tz_label})")
+        ylabel = {
+            "absolute": f"Close ({value_unit})" if is_stock else value_unit,
+            "indexed": "% of start",
+            "log": f"Close ({value_unit}, log)" if is_stock else f"{value_unit} (log)",
+            "drawdown": "% from peak",
+            "returns": f"{interval_label} change (%)",
+            "relative": f"{names[0]}/{names[1]} ratio" if mode == "relative" else "",
+            "cumulative": f"Cumulative ({value_unit})",
+            "delta": f"{interval_label} change ({value_unit})",
+        }
+        ax.set_ylabel(ylabel.get(mode, value_unit))
+        legend: Any = None
+        if legend_placement == "outside":
+            legend = ax.legend(
+                ncols=legend_cols,
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.32),
+                fontsize=max(7, 10 - legend_rows // 2),
+                frameon=True,
+            )
+            fig.subplots_adjust(bottom=min(0.52, 0.16 + 0.08 * legend_rows))
+        elif legend_placement == "inside-top-left":
+            ax.legend(
+                ncols=legend_cols,
+                loc="upper left",
+                bbox_to_anchor=(0.02, 0.98),
+                fontsize=9,
+                frameon=True,
+                borderaxespad=0.0,
+            )
+        elif legend_placement == "inside-left":
+            ax.legend(
+                ncols=legend_cols,
+                loc="center left",
+                bbox_to_anchor=(0.02, 0.5),
+                fontsize=max(8, 10 - max(0, legend_rows - 4)),
+                frameon=True,
+                borderaxespad=0.0,
+            )
+        else:
+            ax.legend(
+                ncols=legend_cols,
+                loc="best",
+                fontsize=max(8, 10 - max(0, legend_rows - 1)),
+                frameon=True,
+            )
+        fig.autofmt_xdate()
 
-    buf = BytesIO()
-    _save_dpi: float | str
-    if save_dpi is not None:
-        _save_dpi = save_dpi
-    elif sys.stdout.isatty():
-        px_width = _terminal_pixel_width()
-        _save_dpi = px_width / width_in if px_width else "figure"
-    else:
-        _save_dpi = "figure"
-    if crowded_legend and legend is not None:
-        # The fixed height/margin heuristics above are an estimate; grow the
-        # canvas to whatever the legend actually needs instead of clipping it.
-        fig.savefig(
-            buf,
-            format="png",
-            dpi=_save_dpi,
-            bbox_inches="tight",
-            bbox_extra_artists=[legend],
-        )
-    else:
-        fig.savefig(buf, format="png", dpi=_save_dpi)
-    plt.close(fig)
+        buf = BytesIO()
+        _save_dpi: float | str
+        if save_dpi is not None:
+            _save_dpi = save_dpi
+        elif sys.stdout.isatty():
+            px_width = _terminal_pixel_width()
+            _save_dpi = px_width / width_in if px_width else "figure"
+        else:
+            _save_dpi = "figure"
+        if crowded_legend and legend is not None:
+            # The fixed height/margin heuristics above are an estimate; grow the
+            # canvas to whatever the legend actually needs instead of clipping it.
+            fig.savefig(
+                buf,
+                format="png",
+                dpi=_save_dpi,
+                bbox_inches="tight",
+                bbox_extra_artists=[legend],
+            )
+        else:
+            fig.savefig(buf, format="png", dpi=_save_dpi)
+    finally:
+        plt.close(fig)
     return buf.getvalue()
 
 
