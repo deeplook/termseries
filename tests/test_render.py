@@ -232,6 +232,23 @@ class TestOutputPng:
             _output_png(small_png, ["A"], (4, 1), "7d")
         mock.assert_called_once_with(small_png)
 
+    def test_explicit_sixel_protocol_bypasses_auto_detection(
+        self, small_png: bytes, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--output inline --protocol sixel is the escape hatch for terminals
+        (e.g. a Sixel-patched xterm build) that auto-detection can't
+        recognize -- unlike output="auto", output="inline" always honors an
+        explicit protocol without gating on auto-detection first."""
+        monkeypatch.setenv("TERM", "xterm")  # auto-detection alone says False
+        with (
+            patch("sys.stdout.isatty", return_value=True),
+            patch("termseries.render._print_sixel_png") as mock,
+        ):
+            _output_png(
+                small_png, ["A"], (4, 1), "7d", output="inline", protocol="sixel"
+            )
+        mock.assert_called_once_with(small_png)
+
     def test_fallback_writes_file(
         self,
         small_png: bytes,
