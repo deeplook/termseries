@@ -38,25 +38,25 @@ def _mock_response(body: object, status: int = 200) -> MagicMock:
 
 class TestHaRequest:
     def test_missing_env_vars_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("HASS_URL", raising=False)
+        monkeypatch.delenv("HASS_SERVER", raising=False)
         monkeypatch.delenv("HASS_TOKEN", raising=False)
-        with pytest.raises(RuntimeError, match="HASS_URL and HASS_TOKEN"):
+        with pytest.raises(RuntimeError, match="HASS_SERVER and HASS_TOKEN"):
             _ha_request("/api/states")
 
     def test_missing_token_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.delenv("HASS_TOKEN", raising=False)
-        with pytest.raises(RuntimeError, match="HASS_URL and HASS_TOKEN"):
+        with pytest.raises(RuntimeError, match="HASS_SERVER and HASS_TOKEN"):
             _ha_request("/api/states")
 
     def test_missing_url_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("HASS_URL", raising=False)
+        monkeypatch.delenv("HASS_SERVER", raising=False)
         monkeypatch.setenv("HASS_TOKEN", "tok")
-        with pytest.raises(RuntimeError, match="HASS_URL and HASS_TOKEN"):
+        with pytest.raises(RuntimeError, match="HASS_SERVER and HASS_TOKEN"):
             _ha_request("/api/states")
 
     def test_successful_request(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "test-token")
 
         resp = _mock_response({"key": "value"})
@@ -65,7 +65,7 @@ class TestHaRequest:
         assert result == {"key": "value"}
 
     def test_trailing_slash_stripped(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123/")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123/")
         monkeypatch.setenv("HASS_TOKEN", "test-token")
 
         resp = _mock_response([])
@@ -75,7 +75,7 @@ class TestHaRequest:
         assert mock_get.call_args[0][0] == "http://ha.local:8123/api/states"
 
     def test_connection_error_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "test-token")
 
         with (
@@ -95,7 +95,7 @@ class TestHaRequest:
 
 class TestFetchHaEntity:
     def test_happy_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         history = [
@@ -119,7 +119,7 @@ class TestFetchHaEntity:
     def test_drops_stale_initial_point(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The HA API includes a synthetic state at the period start whose
         last_changed can predate the window — this must be dropped."""
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         history = [
@@ -139,7 +139,7 @@ class TestFetchHaEntity:
         assert series[0][1] == 22.0
 
     def test_filters_non_numeric_states(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         history = [
@@ -159,7 +159,7 @@ class TestFetchHaEntity:
         assert series[1][1] == 22.0
 
     def test_empty_history_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         resp = _mock_response([[]])
@@ -170,7 +170,7 @@ class TestFetchHaEntity:
             _fetch_ha_entity("sensor.temp", "7d")
 
     def test_all_non_numeric_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         history = [
@@ -187,7 +187,7 @@ class TestFetchHaEntity:
             _fetch_ha_entity("sensor.temp", "7d")
 
     def test_no_data_at_all_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         resp = _mock_response([])
@@ -198,7 +198,7 @@ class TestFetchHaEntity:
             _fetch_ha_entity("sensor.temp", "7d")
 
     def test_sorts_unsorted_history(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         history = [
@@ -226,7 +226,7 @@ class TestFetchHaEntity:
 
 class TestDetectUnit:
     def test_returns_unit_of_measurement(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         state = {
@@ -239,7 +239,7 @@ class TestDetectUnit:
             assert _detect_unit("sensor.temp") == "\u00b0C"
 
     def test_fallback_to_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         state = {
@@ -252,7 +252,7 @@ class TestDetectUnit:
             assert _detect_unit("sensor.custom") == "value"
 
     def test_empty_attributes_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         state = {"entity_id": "sensor.bare", "state": "1", "attributes": {}}
@@ -321,7 +321,7 @@ class TestFetchHaSeries:
         return get
 
     def test_single_entity(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
         mocks = self._make_mocks()
 
@@ -335,7 +335,7 @@ class TestFetchHaSeries:
         assert len(result["Living Room Temperature"]) == 2
 
     def test_multiple_entities(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
         mocks = self._make_mocks()
 
@@ -349,7 +349,7 @@ class TestFetchHaSeries:
         assert "Bedroom Humidity" in result
 
     def test_deduplicates_entity_ids(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
         mocks = self._make_mocks()
 
@@ -364,7 +364,7 @@ class TestFetchHaSeries:
         assert len(result) == 1
 
     def test_fallback_label_to_entity_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HASS_URL", "http://ha.local:8123")
+        monkeypatch.setenv("HASS_SERVER", "http://ha.local:8123")
         monkeypatch.setenv("HASS_TOKEN", "tok")
 
         history = [

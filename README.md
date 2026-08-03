@@ -123,7 +123,7 @@ termseries -i yahoo TSLA
 
 # --- Home Assistant sensors ---
 
-# Plot HA sensor data (requires HASS_URL and HASS_TOKEN env vars)
+# Plot HA sensor data (requires HASS_SERVER and HASS_TOKEN env vars)
 termseries ha sensor.living_room_temperature sensor.bedroom_temperature
 
 # Last 3 hours of data
@@ -238,7 +238,7 @@ The `ha` subcommand connects to a running Home Assistant instance via the
 REST API. Set these environment variables:
 
 ```bash
-export HASS_URL=http://homeassistant.local:8123
+export HASS_SERVER=http://homeassistant.local:8123
 export HASS_TOKEN=your_long_lived_access_token
 ```
 
@@ -302,7 +302,7 @@ for all available keys.
 
 | Variable | Effect |
 |---|---|
-| `HASS_URL` | Home Assistant base URL (e.g. `http://ha.local:8123`) |
+| `HASS_SERVER` | Home Assistant base URL (e.g. `http://ha.local:8123`) |
 | `HASS_TOKEN` | Home Assistant long-lived access token |
 
 ## Theme

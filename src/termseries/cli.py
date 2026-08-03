@@ -555,7 +555,7 @@ def ha(
 ) -> None:
     """Plot sensor data from a Home Assistant instance.
 
-    Requires HASS_URL and HASS_TOKEN environment variables.
+    Requires HASS_SERVER and HASS_TOKEN environment variables.
     """
     opts = ctx.obj
 

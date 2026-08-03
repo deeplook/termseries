@@ -3,8 +3,8 @@
 Fetches sensor history from a running Home Assistant instance via the
 REST API.  Connection is configured through environment variables:
 
-- ``HASS_URL``   – base URL (e.g. ``http://homeassistant.local:8123``)
-- ``HASS_TOKEN`` – long-lived access token
+- ``HASS_SERVER`` – base URL (e.g. ``http://homeassistant.local:8123``)
+- ``HASS_TOKEN``  – long-lived access token
 """
 
 from __future__ import annotations
@@ -30,10 +30,12 @@ def _ha_request(path: str) -> Any:
     Returns the parsed JSON body.  Raises ``RuntimeError`` on missing env
     vars, connection errors, or non-200 responses.
     """
-    base_url = os.environ.get("HASS_URL")
+    base_url = os.environ.get("HASS_SERVER")
     token = os.environ.get("HASS_TOKEN")
     if not base_url or not token:
-        raise RuntimeError("HASS_URL and HASS_TOKEN environment variables must be set.")
+        raise RuntimeError(
+            "HASS_SERVER and HASS_TOKEN environment variables must be set."
+        )
 
     url = f"{base_url.rstrip('/')}{path}"
 
