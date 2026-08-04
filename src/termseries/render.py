@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 import sys
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta, tzinfo
@@ -12,9 +13,14 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
-from cycler import cycler
+
+matplotlib.use(
+    "Agg"
+)  # headless: never touch a GUI toolkit (e.g. missing Tk on Windows)
+
+import matplotlib.dates as mdates  # noqa: E402
+import matplotlib.pyplot as plt  # noqa: E402
+from cycler import cycler  # noqa: E402
 
 from termseries.period import resolve_tz
 from termseries.terminal import (
@@ -93,11 +99,16 @@ def _legend_layout(display_names: Sequence[str]) -> tuple[str, int, int]:
     return ("outside", cols, rows)
 
 
+_FILENAME_UNSAFE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
 def _auto_output_filename(
     series_names: Sequence[str], period: str, ratio: tuple[int, int]
 ) -> str:
     """Build a readable auto-output filename that stays within path limits."""
-    names = [n.strip().upper() for n in series_names if n.strip()]
+    names = [
+        _FILENAME_UNSAFE.sub("_", n.strip().upper()) for n in series_names if n.strip()
+    ]
     names_part = "-".join(names[:6])
     if len(names) > 6:
         names_part += f"-plus{len(names) - 6}"
