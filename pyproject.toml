@@ -29,7 +29,7 @@ packages = ["src/termseries"]
 
 [project]
 name = "termseries"
-version = "0.1.0"
+version = "0.2.0"
 description = "Show timeseries data in the terminal using matplotlib."
 readme = "README.md"
 authors = [{ name = "Dinu Gherman", email = "gherman@darwin.in-berlin.de" }]
