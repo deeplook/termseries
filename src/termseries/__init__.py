@@ -8,7 +8,9 @@ from __future__ import annotations
 
 __version__ = "0.1.0"
 
-from termseries.cli import app, csv_cmd, demo, hass, main, polymarket, yahoo
+from termseries.cli import app, csv_cmd, demo, hass, main
+from termseries.cli import polymarket as polymarket_cmd
+from termseries.cli import yahoo as yahoo_cmd
 from termseries.csv_source import (
     _parse_timestamp,
     _read_csv,
@@ -71,8 +73,8 @@ __all__ = [
     "_to_date_cutoff",
     "app",
     "main",
-    "yahoo",
-    "polymarket",
+    "yahoo_cmd",
+    "polymarket_cmd",
     "csv_cmd",
     "demo",
     "fetch_yahoo_series",
