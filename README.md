@@ -15,6 +15,7 @@ or saves to file, with an optional interactive Textual TUI.
 
 ### Data Sources
 - Fetch stock/crypto/index prices from Yahoo Finance via the `yahoo` subcommand, with auto-picked intra-day intervals for short periods (e.g. 5m for 1d, 15m for 5d/7d)
+- Chart prediction-market prices from Polymarket via the `polymarket` subcommand, with auto-picked aggregation intervals based on period duration
 - Plot Home Assistant sensor history via the `hass` subcommand (REST API)
 - Load local two-column CSV files (timestamp, value) via the `csv` subcommand
 - Auto-detect and skip CSV headers, blank lines, NaN/Inf values
@@ -57,7 +58,7 @@ or saves to file, with an optional interactive Textual TUI.
 ### Developer Experience
 - Fully typed (`py.typed`, mypy-checked)
 - Pre-commit hooks for ruff, ruff-format, and mypy
-- 230+ unit tests covering all modules
+- 430+ unit tests covering all modules
 - Docker support with Compose for containerized usage
 
 ## Installation
@@ -139,6 +140,17 @@ termseries hass "sensor.*battery_level" --last 7d
 
 # Interactive TUI with HASS data
 termseries -i hass sensor.power_consumption
+
+# --- Polymarket markets ---
+
+# Plot a Polymarket market's "yes" price
+termseries polymarket will-bitcoin-hit-150k-in-2026
+
+# Plot the "no" outcome instead
+termseries polymarket will-bitcoin-hit-150k-in-2026 --outcome no
+
+# Last 30 days
+termseries polymarket will-bitcoin-hit-150k-in-2026 --last 30d
 
 # --- CSV files ---
 
@@ -308,6 +320,25 @@ on the period duration:
 | ≤ 7 days        | 15m          |
 | > 7 days        | 1d           |
 
+### Polymarket-specific Options
+
+| Option | Description |
+|---|---|
+| `--outcome` | Outcome label to chart, usually `yes` or `no` for binary markets (default: `yes`) |
+| `--interval` | Aggregation interval: `auto` (default), `max`, `all`, `1m`, `1h`, `6h`, `1d`, `1w` |
+| `--fidelity` | Data fidelity in minutes for the Polymarket history API (default: `1`) |
+
+When `--interval auto` (the default), termseries picks a sensible interval based
+on the period duration:
+
+| Period duration | Auto interval |
+|-----------------|--------------|
+| ≤ 6 hours        | 1m           |
+| ≤ 3 days         | 1h           |
+| ≤ 30 days        | 6h           |
+| ≤ 180 days       | 1d           |
+| > 180 days       | 1w           |
+
 ## Home Assistant Setup
 
 The `hass` subcommand connects to a running Home Assistant instance via the
@@ -452,28 +483,36 @@ termseries/
 ├── src/termseries/
 │   ├── __init__.py
 │   ├── __main__.py
+│   ├── cli.py
 │   ├── csv_source.py
+│   ├── detect.py
 │   ├── gaps.py
-│   ├── ha_source.py
+│   ├── hass_source.py
 │   ├── period.py
+│   ├── polymarket.py
 │   ├── render.py
 │   ├── terminal.py
 │   ├── tui.py
 │   ├── types.py
-│   ├── cli.py
 │   ├── yahoo.py
 │   ├── dark.mplstyle
 │   ├── light.mplstyle
 │   └── py.typed
 ├── tests/
 │   ├── conftest.py
+│   ├── test_cli.py
 │   ├── test_csv_source.py
+│   ├── test_detect.py
 │   ├── test_docker.py
+│   ├── test_fitbit_to_csv.py
 │   ├── test_gaps.py
-│   ├── test_ha_source.py
+│   ├── test_hass_source.py
 │   ├── test_period.py
+│   ├── test_polymarket.py
 │   ├── test_render.py
-│   └── test_terminal.py
+│   ├── test_terminal.py
+│   ├── test_tui.py
+│   └── test_yahoo.py
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml
