@@ -482,58 +482,6 @@ PROTOCOL=kitty
 
 Precedence (highest to lowest): CLI flag → config file → auto-detection.
 
-## Project Structure
-
-```
-termseries/
-├── src/termseries/
-│   ├── __init__.py
-│   ├── __main__.py
-│   ├── cli.py
-│   ├── csv_source.py
-│   ├── detect.py
-│   ├── gaps.py
-│   ├── hass_source.py
-│   ├── period.py
-│   ├── polymarket.py
-│   ├── render.py
-│   ├── terminal.py
-│   ├── tui.py
-│   ├── types.py
-│   ├── yahoo.py
-│   ├── dark.mplstyle
-│   ├── light.mplstyle
-│   └── py.typed
-├── tests/
-│   ├── conftest.py
-│   ├── test_cli.py
-│   ├── test_csv_source.py
-│   ├── test_detect.py
-│   ├── test_docker.py
-│   ├── test_fitbit_to_csv.py
-│   ├── test_gaps.py
-│   ├── test_hass_source.py
-│   ├── test_period.py
-│   ├── test_polymarket.py
-│   ├── test_render.py
-│   ├── test_terminal.py
-│   ├── test_tui.py
-│   └── test_yahoo.py
-├── .github/
-│   ├── workflows/
-│   │   ├── ci.yml
-│   │   └── publish.yml
-│   ├── ISSUE_TEMPLATE/
-│   ├── PULL_REQUEST_TEMPLATE.md
-│   └── dependabot.yml
-├── example.mplstyle
-├── pyproject.toml
-├── Makefile
-├── Dockerfile
-├── docker-compose.yml
-└── README.md
-```
-
 ## Development
 
 ```bash
