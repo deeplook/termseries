@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import json
 import sqlite3
@@ -112,7 +113,10 @@ def convert_dataset(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="termseries-fitbit-") as temp_dir:
         database_path = Path(temp_dir) / "samples.sqlite3"
-        with sqlite3.connect(database_path) as connection:
+        with (
+            contextlib.closing(sqlite3.connect(database_path)) as connection,
+            connection,
+        ):
             connection.execute(
                 "CREATE TABLE samples (timestamp TEXT PRIMARY KEY, value TEXT NOT NULL)"
             )
