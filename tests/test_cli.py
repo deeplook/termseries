@@ -427,6 +427,105 @@ class TestValidators:
         assert "termseries" in result.output
 
 
+class TestTimeRangeOptions:
+    def test_last_is_the_canonical_rolling_window_option(self) -> None:
+        with (
+            patch(
+                "termseries.cli.fetch_yahoo_series", return_value=_FAKE_DATA
+            ) as fetch,
+            patch("termseries.cli._render_png", return_value=_FAKE_PNG),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(app, ["yahoo", "FAKE", "--last", "2w"])
+
+        assert result.exit_code == 0
+        fetch.assert_called_once_with(["FAKE"], "2w", interval="auto", tz="UTC")
+
+    def test_fixed_bounds_fetch_max_then_apply_an_inclusive_range(self) -> None:
+        data = {
+            "FAKE": [
+                (datetime(2024, 1, 1, tzinfo=timezone.utc), 1.0),
+                (datetime(2024, 1, 2, tzinfo=timezone.utc), 2.0),
+                (datetime(2024, 1, 3, tzinfo=timezone.utc), 3.0),
+            ]
+        }
+        captured: dict[str, object] = {}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["series"] = series
+            captured["xlim"] = kwargs["xlim"]
+            return _FAKE_PNG
+
+        with (
+            patch("termseries.cli.fetch_yahoo_series", return_value=data) as fetch,
+            patch("termseries.cli._render_png", side_effect=render),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "yahoo",
+                    "FAKE",
+                    "--from",
+                    "2024-01-02",
+                    "--to",
+                    "2024-01-03",
+                ],
+            )
+
+        assert result.exit_code == 0
+        fetch.assert_called_once_with(["FAKE"], "max", interval="auto", tz="UTC")
+        assert captured["series"] == {"FAKE": data["FAKE"][1:]}
+        assert captured["xlim"] == (
+            datetime(2024, 1, 2, tzinfo=timezone.utc),
+            datetime(2024, 1, 3, tzinfo=timezone.utc),
+        )
+
+    def test_last_cannot_be_combined_with_explicit_bounds(self) -> None:
+        result = runner.invoke(
+            app, ["yahoo", "FAKE", "--last", "7d", "--from", "2024-01-01"]
+        )
+        assert result.exit_code != 0
+        assert "either --last or --from/--to" in result.output
+
+    def test_first_uses_the_earliest_returned_point_as_its_anchor(self) -> None:
+        data = {
+            "FAKE": [
+                (datetime(2024, 1, 1, tzinfo=timezone.utc), 1.0),
+                (datetime(2024, 1, 2, tzinfo=timezone.utc), 2.0),
+                (datetime(2024, 1, 3, tzinfo=timezone.utc), 3.0),
+            ]
+        }
+        captured: dict[str, object] = {}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["series"] = series
+            captured["xlim"] = kwargs["xlim"]
+            return _FAKE_PNG
+
+        with (
+            patch("termseries.cli.fetch_yahoo_series", return_value=data) as fetch,
+            patch("termseries.cli._render_png", side_effect=render),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(app, ["yahoo", "FAKE", "--first", "1d"])
+
+        assert result.exit_code == 0
+        fetch.assert_called_once_with(["FAKE"], "max", interval="auto", tz="UTC")
+        assert captured["series"] == {"FAKE": data["FAKE"][:2]}
+        assert captured["xlim"] == (
+            datetime(2024, 1, 1, tzinfo=timezone.utc),
+            datetime(2024, 1, 2, tzinfo=timezone.utc),
+        )
+
+    def test_first_cannot_be_combined_with_other_range_options(self) -> None:
+        result = runner.invoke(
+            app, ["yahoo", "FAKE", "--first", "7d", "--from", "2024-01-01"]
+        )
+        assert result.exit_code != 0
+        assert "Use --first by itself" in result.output
+
+
 class TestYahooCommand:
     def test_output_filename_uses_resolved_tickers_not_raw_input(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

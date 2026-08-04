@@ -25,7 +25,7 @@ or saves to file, with an optional interactive Textual TUI.
 - Absolute values (default), indexed to 100%, logarithmic scale
 - Drawdown from running peak, interval-aware returns (label adapts to interval), and relative price ratio
 - Cumulative running total and point-to-point delta
-- Unified free-form period syntax across all subcommands (`<number><unit>`, e.g. `14d`, `2w`, `3mo`, `max`, or `auto`)
+- Rolling windows via `--last` and fixed bounds via `--from`/`--to` across all subcommands
 - Calendar-anchored to-date periods: `ytd`, `mtd`, `wtd`, `dtd`, `htd`
 
 ### Terminal Rendering
@@ -77,43 +77,43 @@ uv tool install termseries
 termseries yahoo TSLA AAPL MSFT
 
 # Indexed comparison over 1 month
-termseries --mode indexed yahoo --period 1mo TSLA AAPL MSFT
+termseries --mode indexed yahoo --last 1mo TSLA AAPL MSFT
 
 # Log scale over 5 years
-termseries --mode log yahoo --period 5y AAPL MSFT GOOGL
+termseries --mode log yahoo --last 5y AAPL MSFT GOOGL
 
 # Drawdown chart
-termseries --mode drawdown yahoo --period 1y TSLA AAPL
+termseries --mode drawdown yahoo --last 1y TSLA AAPL
 
 # Intra-day: 1-day period auto-picks 5-minute intervals
-termseries yahoo TSLA --period 1d
+termseries yahoo TSLA --last 1d
 
 # Explicit 1-minute interval override
-termseries yahoo TSLA --interval 1m --period 1d
+termseries yahoo TSLA --interval 1m --last 1d
 
 # Relative price ratio (exactly 2 tickers)
-termseries --mode relative yahoo --period 1y AAPL MSFT
+termseries --mode relative yahoo --last 1y AAPL MSFT
 
 # Cumulative sum
-termseries --mode cumulative csv sensor.csv --period 30d
+termseries --mode cumulative csv sensor.csv --last 30d
 
 # Point-to-point delta
-termseries --mode delta yahoo TSLA --period 1mo
+termseries --mode delta yahoo TSLA --last 1mo
 
 # Show gaps in data (break lines where data is missing)
-termseries --gaps show hass sensor.living_room_temperature --period 7d
+termseries --gaps show hass sensor.living_room_temperature --last 7d
 
 # Connect gaps under 1 hour, break larger ones
-termseries --gaps 1h csv sensor.csv --period 30d
+termseries --gaps 1h csv sensor.csv --last 30d
 
 # Step-style line (staircase effect)
-termseries --line-style step-post yahoo TSLA --period 5d
+termseries --line-style step-post yahoo TSLA --last 5d
 
 # Display x-axis in your local timezone
 termseries --tz local yahoo TSLA AAPL
 
 # Display x-axis in a specific timezone
-termseries --tz Europe/Berlin hass sensor.living_room_temperature --period 1d
+termseries --tz Europe/Berlin hass sensor.living_room_temperature --last 1d
 
 # Copy plot to clipboard
 termseries yahoo -c TSLA AAPL
@@ -127,13 +127,13 @@ termseries -i yahoo TSLA
 termseries hass sensor.living_room_temperature sensor.bedroom_temperature
 
 # Last 3 hours of data
-termseries hass sensor.living_room_temperature --period 3h
+termseries hass sensor.living_room_temperature --last 3h
 
 # Last 30 days with explicit unit
-termseries hass sensor.living_room_temperature --period 30d --unit '°C'
+termseries hass sensor.living_room_temperature --last 30d --unit '°C'
 
 # Glob pattern: plot every matching entity in one call
-termseries hass "sensor.*battery_level" --period 7d
+termseries hass "sensor.*battery_level" --last 7d
 
 # Interactive TUI with HASS data
 termseries -i hass sensor.power_consumption
@@ -144,16 +144,16 @@ termseries -i hass sensor.power_consumption
 termseries csv /path/to/sensor.csv
 
 # Multiple files, last 7 days, with a custom unit label
-termseries csv temp.csv humidity.csv --period 7d --unit '°C'
+termseries csv temp.csv humidity.csv --last 7d --unit '°C'
 
 # Non-standard periods work everywhere
-termseries yahoo TSLA --period 14d
-termseries yahoo TSLA --period 2w
+termseries yahoo TSLA --last 14d
+termseries yahoo TSLA --last 2w
 
 # Calendar-anchored to-date periods
-termseries yahoo TSLA --period ytd
-termseries yahoo TSLA --period mtd
-termseries hass sensor.power_consumption --period dtd
+termseries yahoo TSLA --last ytd
+termseries yahoo TSLA --last mtd
+termseries hass sensor.power_consumption --last dtd
 
 # Interactive TUI with CSV data
 termseries -i csv sensor.csv
@@ -173,7 +173,7 @@ epochs. Blank lines and NaN/Inf values are silently skipped. Naive timestamps
 ```
 
 Each file becomes one series labelled by its filename (without extension). The
-`--period` option filters to a now-anchored time window using free-form
+`--last` filters to a now-anchored time window using free-form
 `<number><unit>` syntax (e.g. `7d`, `2w`, `3mo`). Special values: `max`
 (default) shows all data with the x-axis extending to now; `auto` auto-fits
 the x-axis to the data with no empty space. The `--unit` option sets the
@@ -185,12 +185,12 @@ buckets before rendering. Use `--aggregate` to select the bucket reducer
 `last`). The plotted timestamp is the start of each bucket. For example:
 
 ```bash
-termseries csv data/heart.csv --period 1mo --resample 1m --aggregate mean --unit bpm
+termseries csv data/heart.csv --last 1mo --resample 1m --aggregate mean --unit bpm
 ```
 
-`--period 1m` means the last minute; use `--period 1mo` for the last month.
+`--last 1m` means the last minute; use `--last 1mo` for the last month.
 
-The `hass` subcommand uses the same `--period` syntax and auto-detects the unit
+The `hass` subcommand uses the same `--last` syntax and auto-detects the unit
 from the entity's attributes. Entity IDs may include glob-style patterns
 (`*` matches any run of characters, `?` matches a single character),
 expanded against all entities currently known to Home Assistant:
@@ -216,9 +216,9 @@ python tools/fitbit_to_csv.py steps data data/steps.csv
 python tools/fitbit_to_csv.py heart data data/heart.csv
 python tools/fitbit_to_csv.py sleep data data/sleep.csv
 
-termseries csv data/steps.csv --unit steps --period max
-termseries csv data/heart.csv --unit bpm --period max
-termseries --line-style step-post --gaps show csv data/sleep.csv --unit stage --period max
+termseries csv data/steps.csv --unit steps --last max
+termseries csv data/heart.csv --unit bpm --last max
+termseries --line-style step-post --gaps show csv data/sleep.csv --unit stage --last max
 ```
 
 The sleep CSV represents detailed main-session sleep stages as a numeric step
@@ -240,9 +240,30 @@ heart-rate exports do not need to fit in memory.
 | `-c` / `--copy` | Copy plot to system clipboard |
 | `-i` / `--interactive` | Launch Textual TUI |
 
-### Period Syntax (all subcommands)
+### Time range syntax (all subcommands)
 
-All subcommands accept `--period` with free-form `<number><unit>` values:
+Use `--last` for a rolling window ending now, `--from` and `--to` for a fixed
+inclusive interval, or `--first` for a duration beginning at the earliest
+returned data point. `--to` defaults to `now`; these forms cannot be combined.
+`--period` remains a compatibility alias for `--last`.
+
+```bash
+termseries yahoo TSLA --last 7d
+termseries yahoo TSLA --from 2026-07-01 --to 2026-07-31
+termseries csv readings.csv --from ytd
+termseries csv readings.csv --first 7d
+```
+
+`--from` and `--to` accept ISO-8601 dates/times (such as `2026-07-01` or
+`2026-07-01T12:00:00Z`), `now`, and the same relative/calendar expressions as
+`--last` (such as `7d` and `ytd`).
+
+Warning: `--first` is data-anchored, not calendar-anchored. Its effective start
+can change when a source adds or backfills older history, so use `--from` and
+`--to` for reproducible charts. It accepts durations only (for example `7d`,
+`2w`, or `3mo`).
+
+`--last` accepts free-form `<number><unit>` values:
 
 | Unit | Example | Meaning |
 |------|---------|---------|
@@ -261,7 +282,7 @@ All subcommands accept `--period` with free-form `<number><unit>` values:
 | `auto`|        | all data, x-axis fits to data |
 
 Calendar boundaries for `ytd`/`mtd`/`wtd`/`dtd`/`htd` are computed in the
-timezone set by `--tz` (default UTC) — e.g. `--tz local --period dtd` means
+timezone set by `--tz` (default UTC) — e.g. `--tz local --last dtd` means
 "since local midnight", not UTC midnight.
 
 For Yahoo, non-native periods (e.g. `14d`, `2w`) are handled automatically by
@@ -271,7 +292,9 @@ overfetching the next-larger native range and trimming client-side.
 
 | Option | Description |
 |---|---|
-| `--period` | Chart range (default: `7d`). Any `<number><unit>`, `max`, or `auto` |
+| `--last` | Rolling chart range ending now (default: `7d`). Any `<number><unit>`, `max`, or `auto`; `--period` is an alias |
+| `--from`, `--to` | Inclusive fixed bounds; `--to` defaults to now |
+| `--first` | Data-anchored duration; may change when older history is backfilled |
 | `--interval` | Data interval: auto (default), 1m, 5m, 15m, 30m, 60m, 90m, 1d |
 
 When `--interval auto` (the default), termseries picks a sensible interval based

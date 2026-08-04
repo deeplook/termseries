@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from collections.abc import Callable
+from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
 from typing import Annotated, Any
@@ -59,11 +60,11 @@ app = typer.Typer(
     epilog=(
         "Examples:\n\n"
         "  termseries yahoo TSLA AAPL MSFT\n"
-        "  termseries --mode indexed yahoo --period 1mo TSLA AAPL\n"
-        "  termseries --mode drawdown yahoo --period 1y TSLA AAPL\n"
+        "  termseries --mode indexed yahoo --last 1mo TSLA AAPL\n"
+        "  termseries --mode drawdown yahoo --last 1y TSLA AAPL\n"
         "  termseries polymarket will-bitcoin-hit-150k-in-2026\n"
-        "  termseries csv data.csv --period 30d\n"
-        "  termseries hass sensor.temperature --period 7d\n"
+        "  termseries csv data.csv --last 30d\n"
+        "  termseries hass sensor.temperature --last 7d\n"
     ),
 )
 
@@ -89,6 +90,9 @@ def _run_source(
     anchor_now: bool = False,
     xlim_fn: Callable[[dict[str, TimeSeries]], Any] | None = None,
     labels_fn: Callable[[dict[str, TimeSeries]], list[str]] | None = None,
+    time_range: tuple[datetime | None, datetime | None] | None = None,
+    first_period: str | None = None,
+    period_label: str | None = None,
 ) -> None:
     """Run the shared fetch -> gaps -> render -> output pipeline for a source.
 
@@ -97,8 +101,14 @@ def _run_source(
     differ between them.
     """
     opts = ctx.obj
+    display_period = period_label or period
 
     if opts["interactive"]:
+        if time_range is not None or first_period is not None:
+            raise typer.BadParameter(
+                "--first and --from/--to cannot be used with --interactive; "
+                "use --last instead."
+            )
         interactive_kwargs: dict[str, Any] = {}
         if value_unit is not None:
             interactive_kwargs["value_unit"] = value_unit
@@ -126,6 +136,29 @@ def _run_source(
     typer.echo(fetching_message, err=True)
     try:
         data = fetch_fn(items, period)
+        if first_period is not None:
+            duration = parse_period(first_period)
+            assert duration is not None  # validated by _validate_first
+            all_ts = [dt for series in data.values() for dt, _ in series]
+            first_start = min(all_ts)
+            time_range = (first_start, first_start + duration)
+        if time_range is not None:
+            range_start, range_end = time_range
+            data = {
+                name: [
+                    (dt, value)
+                    for dt, value in series
+                    if (range_start is None or dt >= range_start)
+                    and (range_end is None or dt <= range_end)
+                ]
+                for name, series in data.items()
+            }
+            empty = [name for name, series in data.items() if not series]
+            if empty:
+                raise RuntimeError(
+                    "No data left after applying the requested time range "
+                    f"for: {', '.join(empty)}."
+                )
         data = _apply_gaps(data, opts["gaps"])
         r = opts["ratio"] or (4, 1)
         render_kwargs: dict[str, Any] = {}
@@ -133,12 +166,19 @@ def _run_source(
             render_kwargs["value_unit"] = value_unit
         if interval_label is not None:
             render_kwargs["interval_label"] = interval_label
-        if xlim_fn is not None:
+        if time_range is not None:
+            range_start, range_end = time_range
+            all_ts = [dt for series in data.values() for dt, _ in series]
+            render_kwargs["xlim"] = (
+                range_start or min(all_ts),
+                range_end or max(all_ts),
+            )
+        elif xlim_fn is not None:
             render_kwargs["xlim"] = xlim_fn(data)
         png = _render_png(
             data,
             r,
-            period,
+            display_period,
             color_cycle=opts["colors"],
             mode=opts["mode"],
             style_override=opts["style"],
@@ -152,7 +192,7 @@ def _run_source(
             png,
             labels,
             r,
-            period,
+            display_period,
             copy=opts["copy"],
             output=opts["output"],
             protocol=opts["protocol"],
@@ -162,13 +202,85 @@ def _run_source(
         raise typer.Exit(1) from None
 
 
-def _validate_period(value: str) -> str:
+def _validate_period(value: str | None) -> str | None:
     """Typer callback that validates a free-form period string."""
+    if value is None:
+        return None
     try:
         parse_period(value)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     return value
+
+
+def _validate_first(value: str | None) -> str | None:
+    """Validate a fixed duration for a data-anchored ``--first`` window."""
+    if value is None:
+        return None
+    try:
+        duration = parse_period(value)
+    except ValueError as exc:
+        raise typer.BadParameter("Use a duration such as 7d, 2w, or 3mo.") from exc
+    if value in {"max", "auto", "ytd", "mtd", "wtd", "dtd", "htd"} or duration is None:
+        raise typer.BadParameter("Use a duration such as 7d, 2w, or 3mo.")
+    return value
+
+
+def _parse_time_bound(value: str, *, now: datetime, tz: str) -> datetime:
+    """Parse an ISO-8601 instant, ``now``, or a relative/anchored start."""
+    if value == "now":
+        return now
+    try:
+        delta = parse_period(value, tz=resolve_tz(tz))
+    except ValueError:
+        delta = None
+    else:
+        if value in {"max", "auto"}:
+            raise typer.BadParameter("Time bounds cannot be 'max' or 'auto'.")
+        return now - delta  # type: ignore[operator]
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise typer.BadParameter(
+            "Use an ISO-8601 date/time (e.g. 2026-07-01 or "
+            "2026-07-01T12:00:00Z), 'now', or a value such as 7d/ytd."
+        ) from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=resolve_tz(tz))
+    return parsed.astimezone(timezone.utc)
+
+
+def _resolve_time_range(
+    last: str | None,
+    first: str | None,
+    from_: str | None,
+    to: str | None,
+    *,
+    default_last: str,
+    tz: str,
+) -> tuple[str, str, tuple[datetime | None, datetime | None] | None, str | None]:
+    """Return fetch period, display label, and optional explicit bounds."""
+    selected = sum(value is not None for value in (last, first, from_, to))
+    if first is not None and selected > 1:
+        raise typer.BadParameter(
+            "Use --first by itself, not with --last or --from/--to."
+        )
+    if last is not None and (from_ is not None or to is not None):
+        raise typer.BadParameter("Use either --last or --from/--to, not both.")
+    if first is not None:
+        return "max", f"first {first}", None, first
+    if from_ is None and to is None:
+        resolved_last = last or default_last
+        return resolved_last, resolved_last, None, None
+    now = datetime.now(timezone.utc)
+    start = _parse_time_bound(from_, now=now, tz=tz) if from_ else None
+    end = _parse_time_bound(to, now=now, tz=tz) if to else now
+    if start is not None and end is not None and start > end:
+        raise typer.BadParameter("--from must not be later than --to.")
+    label = f"{from_ or 'start'}..{to or 'now'}"
+    # Source APIs accept rolling-period tokens; fetch their full available range
+    # and apply the exact interval once, consistently, in _run_source.
+    return "max", label, (start, end), None
 
 
 def _validate_resample(value: str | None) -> str | None:
@@ -389,9 +501,9 @@ def main(
     epilog=(
         "Examples:\n\n"
         "  termseries yahoo TSLA\n"
-        "  termseries yahoo TSLA AAPL MSFT --period 1mo\n"
-        "  termseries --mode indexed yahoo --period 1y TSLA AAPL\n"
-        "  termseries yahoo TSLA --interval 1d --period max\n"
+        "  termseries yahoo TSLA AAPL MSFT --last 1mo\n"
+        "  termseries --mode indexed yahoo --last 1y TSLA AAPL\n"
+        "  termseries yahoo TSLA --interval 1d --last max\n"
     )
 )
 def yahoo(
@@ -399,18 +511,37 @@ def yahoo(
     tickers: Annotated[
         list[str], typer.Argument(help="Ticker symbols (e.g. TSLA AAPL)")
     ],
-    period: Annotated[
-        str,
+    last: Annotated[
+        str | None,
         typer.Option(
-            help="Chart range (e.g. 7d, 2w, 3mo, max)",
+            "--last",
+            "--period",
+            help="Rolling window ending now (e.g. 7d, 2w, 3mo, max)",
             callback=_validate_period,
         ),
-    ] = "7d",
+    ] = None,
+    from_: Annotated[
+        str | None, typer.Option("--from", help="Inclusive start time")
+    ] = None,
+    to: Annotated[
+        str | None, typer.Option("--to", help="Inclusive end time (default: now)")
+    ] = None,
+    first: Annotated[
+        str | None,
+        typer.Option(
+            "--first",
+            help="Data-anchored duration; can change when history is backfilled",
+            callback=_validate_first,
+        ),
+    ] = None,
     interval: Annotated[
         YahooInterval, typer.Option(help="Chart interval (auto picks by period)")
     ] = YahooInterval.auto,
 ) -> None:
     """Fetch and plot stock data from Yahoo Finance."""
+    period, period_label, time_range, first_period = _resolve_time_range(
+        last, first, from_, to, default_last="7d", tz=ctx.obj["tz"]
+    )
     if interval.value == "auto":
         resolved = yahoo_auto_interval(period)
     else:
@@ -427,6 +558,9 @@ def yahoo(
             f"yahoo: period={period} interval={interval.value} resolved={resolved}"
         ),
         interval_label=interval_label,
+        time_range=time_range,
+        first_period=first_period,
+        period_label=period_label,
     )
 
 
@@ -435,7 +569,7 @@ def yahoo(
         "Examples:\n\n"
         "  termseries polymarket will-bitcoin-hit-150k-in-2026\n"
         "  termseries polymarket will-bitcoin-hit-150k-in-2026 --outcome no\n"
-        "  termseries polymarket will-bitcoin-hit-150k-in-2026 --period 30d\n"
+        "  termseries polymarket will-bitcoin-hit-150k-in-2026 --last 30d\n"
     )
 )
 def polymarket(
@@ -446,13 +580,29 @@ def polymarket(
             help="Polymarket market slugs (e.g. will-bitcoin-hit-150k-in-2026)"
         ),
     ],
-    period: Annotated[
-        str,
+    last: Annotated[
+        str | None,
         typer.Option(
-            help="Chart range (e.g. 7d, 2w, 3mo, max)",
+            "--last",
+            "--period",
+            help="Rolling window ending now (e.g. 7d, 2w, 3mo, max)",
             callback=_validate_period,
         ),
-    ] = "7d",
+    ] = None,
+    from_: Annotated[
+        str | None, typer.Option("--from", help="Inclusive start time")
+    ] = None,
+    to: Annotated[
+        str | None, typer.Option("--to", help="Inclusive end time (default: now)")
+    ] = None,
+    first: Annotated[
+        str | None,
+        typer.Option(
+            "--first",
+            help="Data-anchored duration; can change when history is backfilled",
+            callback=_validate_first,
+        ),
+    ] = None,
     outcome: Annotated[
         str,
         typer.Option(
@@ -469,6 +619,9 @@ def polymarket(
     ] = 1,
 ) -> None:
     """Fetch and plot market price data from Polymarket."""
+    period, period_label, time_range, first_period = _resolve_time_range(
+        last, first, from_, to, default_last="7d", tz=ctx.obj["tz"]
+    )
     resolved = (
         polymarket_auto_interval(period) if interval.value == "auto" else interval.value
     )
@@ -489,6 +642,9 @@ def polymarket(
             f"polymarket: period={period} interval={interval.value} resolved={resolved}"
         ),
         interval_label=resolved,
+        time_range=time_range,
+        first_period=first_period,
+        period_label=period_label,
     )
 
 
@@ -497,9 +653,9 @@ def polymarket(
     epilog=(
         "Examples:\n\n"
         "  termseries csv data.csv\n"
-        "  termseries csv data.csv --period 30d --unit °C\n"
-        "  termseries csv heart.csv --period 1mo --resample 1m --aggregate mean\n"
-        "  termseries csv temp.csv humidity.csv --period 7d\n"
+        "  termseries csv data.csv --last 30d --unit °C\n"
+        "  termseries csv heart.csv --last 1mo --resample 1m --aggregate mean\n"
+        "  termseries csv temp.csv humidity.csv --last 7d\n"
     ),
 )
 def csv_cmd(
@@ -507,13 +663,29 @@ def csv_cmd(
     files: Annotated[
         list[str], typer.Argument(help="CSV file paths (timestamp, value)")
     ],
-    period: Annotated[
-        str,
+    last: Annotated[
+        str | None,
         typer.Option(
-            help="Show last N period (e.g. 7d, 2w, max)",
+            "--last",
+            "--period",
+            help="Rolling window ending now (e.g. 7d, 2w, max)",
             callback=_validate_period,
         ),
-    ] = "max",
+    ] = None,
+    from_: Annotated[
+        str | None, typer.Option("--from", help="Inclusive start time")
+    ] = None,
+    to: Annotated[
+        str | None, typer.Option("--to", help="Inclusive end time (default: now)")
+    ] = None,
+    first: Annotated[
+        str | None,
+        typer.Option(
+            "--first",
+            help="Data-anchored duration; can change when history is backfilled",
+            callback=_validate_first,
+        ),
+    ] = None,
     unit: Annotated[str, typer.Option(help="Value unit label")] = "value",
     resample: Annotated[
         str | None,
@@ -531,6 +703,9 @@ def csv_cmd(
 ) -> None:
     """Plot time-series data from local CSV files."""
     tz = ctx.obj["tz"]
+    period, period_label, time_range, first_period = _resolve_time_range(
+        last, first, from_, to, default_last="max", tz=tz
+    )
 
     _run_source(
         ctx,
@@ -542,6 +717,9 @@ def csv_cmd(
         anchor_now=True,
         xlim_fn=lambda data: xlim_now(period, data, tz=resolve_tz(tz)),
         labels_fn=lambda _data: [Path(f).stem for f in files],
+        time_range=time_range,
+        first_period=first_period,
+        period_label=period_label,
     )
 
 
@@ -549,7 +727,7 @@ def csv_cmd(
     epilog=(
         "Examples:\n\n"
         "  termseries hass sensor.temperature\n"
-        "  termseries hass sensor.temperature sensor.humidity --period 30d\n"
+        "  termseries hass sensor.temperature sensor.humidity --last 30d\n"
         "  termseries --mode absolute hass sensor.power --unit W\n"
     )
 )
@@ -558,13 +736,29 @@ def hass(
     entities: Annotated[
         list[str], typer.Argument(help="HASS entity IDs (e.g. sensor.temperature)")
     ],
-    period: Annotated[
-        str,
+    last: Annotated[
+        str | None,
         typer.Option(
-            help="Show last N period (e.g. 7d, 2w, max)",
+            "--last",
+            "--period",
+            help="Rolling window ending now (e.g. 7d, 2w, max)",
             callback=_validate_period,
         ),
-    ] = "7d",
+    ] = None,
+    from_: Annotated[
+        str | None, typer.Option("--from", help="Inclusive start time")
+    ] = None,
+    to: Annotated[
+        str | None, typer.Option("--to", help="Inclusive end time (default: now)")
+    ] = None,
+    first: Annotated[
+        str | None,
+        typer.Option(
+            "--first",
+            help="Data-anchored duration; can change when history is backfilled",
+            callback=_validate_first,
+        ),
+    ] = None,
     unit: Annotated[
         str | None, typer.Option(help="Value unit (auto-detect if omitted)")
     ] = None,
@@ -580,6 +774,9 @@ def hass(
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
 
+    period, period_label, time_range, first_period = _resolve_time_range(
+        last, first, from_, to, default_last="7d", tz=ctx.obj["tz"]
+    )
     _run_source(
         ctx,
         resolved_entities,
@@ -589,6 +786,9 @@ def hass(
             f"Fetching {', '.join(resolved_entities)} from Home Assistant…"
         ),
         value_unit=resolved_unit,
+        time_range=time_range,
+        first_period=first_period,
+        period_label=period_label,
     )
 
 
