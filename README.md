@@ -11,6 +11,8 @@ Yahoo Finance, sensor data from Home Assistant, or any numeric timeseries from
 local CSV files. Renders high-quality PNG charts inline (Kitty, iTerm2, Sixel)
 or saves to file, with an optional interactive Textual TUI.
 
+![termseries yahoo output](https://raw.githubusercontent.com/deeplook/termseries/main/images/termseries-yahoo.png)
+
 ## Features
 
 ### Data Sources
