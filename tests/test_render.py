@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import pytest
 
 from termseries.render import (
+    _auto_output_filename,
     _calendar_divider_locator,
     _display_series_name,
     _legend_layout,
@@ -353,6 +354,13 @@ class TestOutputPng:
         written = next(tmp_path.glob("termseries_*_30d_4x1.png"))
         assert written.exists()
         assert len(written.name) < 180
+
+
+class TestAutoOutputFilename:
+    def test_reserved_characters_are_sanitized(self) -> None:
+        """Characters invalid in Windows filenames (e.g. ':') are replaced."""
+        name = _auto_output_filename(["MARKET-LABEL:YES"], "30d", (4, 1))
+        assert not set('<>:"/\\|?*').intersection(name)
 
 
 # ===================================================================

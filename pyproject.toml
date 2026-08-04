@@ -55,6 +55,7 @@ dependencies = [
     "textual>=7.5.0",
     "textual-image",
     "typer>=0.21.1",
+    "tzdata; sys_platform == 'win32'",
 ]
 
 [project.scripts]
