@@ -58,7 +58,7 @@ or saves to file, with an optional interactive Textual TUI.
 ### Developer Experience
 - Fully typed (`py.typed`, mypy-checked)
 - Pre-commit hooks for ruff, ruff-format, and mypy
-- 430+ unit tests covering all modules
+- 430+ unit tests covering all modules, run in CI on Linux and Windows
 - Docker support with Compose for containerized usage
 
 ## Installation
