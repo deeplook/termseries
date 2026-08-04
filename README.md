@@ -1,9 +1,10 @@
 # termseries
 
-![PyPI](https://img.shields.io/pypi/v/termseries)
-![Python](https://img.shields.io/pypi/pyversions/termseries)
-![License](https://img.shields.io/github/license/deeplook/termseries)
-![CI](https://img.shields.io/github/actions/workflow/status/deeplook/termseries/ci.yml)
+[![CI](https://github.com/deeplook/termseries/actions/workflows/ci.yml/badge.svg)](https://github.com/deeplook/termseries/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/termseries.svg)](https://pypi.org/project/termseries/)
+[![Python](https://img.shields.io/pypi/pyversions/termseries.svg)](https://pypi.org/project/termseries/)
+[![Downloads](https://img.shields.io/pypi/dm/termseries.svg)](https://pepy.tech/project/termseries)
+[![License](https://img.shields.io/github/license/deeplook/termseries.svg)](https://github.com/deeplook/termseries/blob/main/LICENSE)
 
 Show timeseries data in the terminal using matplotlib. Plot stock prices from
 Yahoo Finance, sensor data from Home Assistant, or any numeric timeseries from
