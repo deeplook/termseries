@@ -179,6 +179,17 @@ Each file becomes one series labelled by its filename (without extension). The
 the x-axis to the data with no empty space. The `--unit` option sets the
 y-axis label (default: `value`).
 
+For high-frequency data, `--resample` reduces points into fixed, UTC-aligned
+buckets before rendering. Use `--aggregate` to select the bucket reducer
+(`mean` by default; also `median`, `min`, `max`, `sum`, `count`, `first`, and
+`last`). The plotted timestamp is the start of each bucket. For example:
+
+```bash
+termseries csv data/heart.csv --period 1mo --resample 1m --aggregate mean --unit bpm
+```
+
+`--period 1m` means the last minute; use `--period 1mo` for the last month.
+
 The `hass` subcommand uses the same `--period` syntax and auto-detects the unit
 from the entity's attributes. Entity IDs may include glob-style patterns
 (`*` matches any run of characters, `?` matches a single character),

@@ -524,10 +524,24 @@ class TestCsvCommand:
             patch("termseries.cli._render_png", return_value=_FAKE_PNG),
             patch("termseries.cli._output_png", side_effect=mock_output),
         ):
-            result = runner.invoke(app, ["csv", "temp.csv", "--period", "7d"])
+            result = runner.invoke(
+                app,
+                [
+                    "csv",
+                    "temp.csv",
+                    "--period",
+                    "7d",
+                    "--resample",
+                    "1m",
+                    "--aggregate",
+                    "median",
+                ],
+            )
 
         assert result.exit_code == 0
-        fetch_mock.assert_called_once_with(["temp.csv"], "7d", tz="UTC")
+        fetch_mock.assert_called_once_with(
+            ["temp.csv"], "7d", tz="UTC", resample="1m", aggregate="median"
+        )
         # Labels are the file stems, not the raw paths.
         assert captured["names"] == ["temp"]
 

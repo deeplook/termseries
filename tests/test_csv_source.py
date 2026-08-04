@@ -12,6 +12,7 @@ from termseries.csv_source import (
     _parse_timestamp,
     _read_csv,
     fetch_csv_series,
+    resample_series,
 )
 from termseries.period import filter_period
 
@@ -186,6 +187,50 @@ class TestFilterLast:
 # ===================================================================
 
 
+class TestResampleSeries:
+    def test_mean_groups_values_in_epoch_aligned_buckets(self) -> None:
+        base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        series = [
+            (base + timedelta(seconds=10), 60.0),
+            (base + timedelta(seconds=50), 90.0),
+            (base + timedelta(minutes=1, seconds=10), 120.0),
+        ]
+
+        assert resample_series(series, "1m") == [
+            (base, 75.0),
+            (base + timedelta(minutes=1), 120.0),
+        ]
+
+    def test_other_aggregates(self) -> None:
+        base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        series = [
+            (base, 1.0),
+            (base + timedelta(seconds=2), 9.0),
+            (base + timedelta(seconds=3), 3.0),
+        ]
+
+        assert resample_series(series, "1m", "median")[0][1] == 3.0
+        assert resample_series(series, "1m", "min")[0][1] == 1.0
+        assert resample_series(series, "1m", "max")[0][1] == 9.0
+        assert resample_series(series, "1m", "sum")[0][1] == 13.0
+        assert resample_series(series, "1m", "count")[0][1] == 3.0
+        assert resample_series(series, "1m", "first")[0][1] == 1.0
+        assert resample_series(series, "1m", "last")[0][1] == 3.0
+
+    @pytest.mark.parametrize(
+        "interval", ["max", "auto", "ytd", "mtd", "wtd", "dtd", "htd", "0m", "bogus"]
+    )
+    def test_rejects_non_positive_or_non_duration_intervals(
+        self, interval: str
+    ) -> None:
+        with pytest.raises(ValueError):
+            resample_series([], interval)
+
+    def test_rejects_unknown_aggregate(self) -> None:
+        with pytest.raises(ValueError, match="Unknown aggregate"):
+            resample_series([], "1m", "average")
+
+
 class TestFetchCsvSeries:
     def test_single_file(self, tmp_path: Path) -> None:
         f = tmp_path / "sensor.csv"
@@ -238,6 +283,12 @@ class TestFetchCsvSeries:
         f.write_text("2024-01-01,1.0\n")
         result = fetch_csv_series([str(f)], "max")
         assert "my_sensor_data" in result
+
+    def test_resamples_after_filtering(self, tmp_path: Path) -> None:
+        f = tmp_path / "data.csv"
+        f.write_text("2024-01-01T00:00:10Z,10\n2024-01-01T00:00:50Z,20\n")
+        result = fetch_csv_series([str(f)], "max", resample="1m")
+        assert result["data"] == [(datetime(2024, 1, 1, tzinfo=timezone.utc), 15.0)]
 
     def test_tz_is_resolved_and_threaded_to_filter_period(self, tmp_path: Path) -> None:
         f = tmp_path / "data.csv"

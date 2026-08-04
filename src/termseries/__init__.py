@@ -13,6 +13,7 @@ from termseries.csv_source import (
     _parse_timestamp,
     _read_csv,
     fetch_csv_series,
+    resample_series,
 )
 from termseries.gaps import insert_gaps
 from termseries.hass_source import (
@@ -78,6 +79,7 @@ __all__ = [
     "fetch_polymarket_series",
     "_fetch_closes",
     "fetch_csv_series",
+    "resample_series",
     "fetch_hass_series",
     "_hass_request",
     "_fetch_hass_entity",

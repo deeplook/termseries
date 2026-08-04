@@ -4,11 +4,24 @@ from __future__ import annotations
 
 import csv
 import math
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+from statistics import median
 
 from termseries.period import filter_period, parse_period, resolve_tz
 from termseries.types import TimeSeries
+
+_AGGREGATES: dict[str, Callable[[list[float]], float]] = {
+    "mean": lambda values: sum(values) / len(values),
+    "median": median,
+    "min": min,
+    "max": max,
+    "sum": sum,
+    "count": lambda values: float(len(values)),
+    "first": lambda values: values[0],
+    "last": lambda values: values[-1],
+}
 
 # ---------------------------------------------------------------------------
 # Timestamp parsing
@@ -121,8 +134,55 @@ def _read_csv(path: str) -> TimeSeries:
 # ---------------------------------------------------------------------------
 
 
+def resample_series(
+    series: TimeSeries, interval: str, aggregate: str = "mean"
+) -> TimeSeries:
+    """Reduce a series into fixed UTC buckets.
+
+    *interval* uses duration syntax (for example ``"1m"`` or ``"1h"``).
+    Buckets are aligned to the Unix epoch and represented by their starting
+    timestamp. ``aggregate`` must be one of :data:`_AGGREGATES`.
+    """
+    try:
+        width = parse_period(interval)
+    except ValueError as exc:
+        raise ValueError(f"Invalid resample interval {interval!r}: {exc}") from exc
+    if interval in {"max", "auto", "ytd", "mtd", "wtd", "dtd", "htd"} or (
+        width is None or width.total_seconds() <= 0
+    ):
+        raise ValueError(
+            f"Resample interval must be a positive duration, got {interval!r}."
+        )
+    try:
+        reducer = _AGGREGATES[aggregate]
+    except KeyError as exc:
+        choices = ", ".join(_AGGREGATES)
+        raise ValueError(
+            f"Unknown aggregate {aggregate!r}; choose one of: {choices}."
+        ) from exc
+
+    width_seconds = width.total_seconds()
+    buckets: dict[int, list[float]] = {}
+    for timestamp, value in series:
+        bucket = math.floor(timestamp.timestamp() / width_seconds)
+        buckets.setdefault(bucket, []).append(value)
+
+    return [
+        (
+            datetime.fromtimestamp(bucket * width_seconds, tz=timezone.utc),
+            reducer(values),
+        )
+        for bucket, values in sorted(buckets.items())
+    ]
+
+
 def fetch_csv_series(
-    paths: list[str], period: str, *, tz: str = "UTC"
+    paths: list[str],
+    period: str,
+    *,
+    tz: str = "UTC",
+    resample: str | None = None,
+    aggregate: str = "mean",
 ) -> dict[str, TimeSeries]:
     """Load CSV files and return labelled time-series data.
 
@@ -131,7 +191,9 @@ def fetch_csv_series(
     The period window is anchored to *now* so that all series share the
     same time range (rather than each being truncated to its own last
     timestamp). *tz* controls which timezone to-date periods
-    (ytd/mtd/wtd/dtd/htd) anchor their calendar boundary in.
+    (ytd/mtd/wtd/dtd/htd) anchor their calendar boundary in. When *resample*
+    is set, each filtered series is reduced into fixed UTC buckets using
+    *aggregate*.
     """
     now = datetime.now(timezone.utc) if parse_period(period) is not None else None
     resolved_tz = resolve_tz(tz)
@@ -150,6 +212,8 @@ def fetch_csv_series(
             raise RuntimeError(
                 f"{raw_path}: no data left after trimming to period={period}."
             )
+        if resample is not None:
+            series = resample_series(series, resample, aggregate)
         label = Path(raw_path).stem
         result[label] = series
 

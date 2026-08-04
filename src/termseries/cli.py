@@ -11,7 +11,7 @@ from typing import Annotated, Any
 
 import typer
 
-from termseries.csv_source import fetch_csv_series
+from termseries.csv_source import fetch_csv_series, resample_series
 from termseries.detect import (
     supports_iterm2_inline_images,
     supports_kitty_graphics,
@@ -168,6 +168,19 @@ def _validate_period(value: str) -> str:
         parse_period(value)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
+    return value
+
+
+def _validate_resample(value: str | None) -> str | None:
+    """Validate a positive fixed-width interval for CSV resampling."""
+    if value is None:
+        return None
+    try:
+        resample_series([], value)
+    except ValueError as exc:
+        raise typer.BadParameter(
+            f"Use a positive duration such as 1m, 5m, or 1h. {exc}"
+        ) from exc
     return value
 
 
@@ -485,6 +498,7 @@ def polymarket(
         "Examples:\n\n"
         "  termseries csv data.csv\n"
         "  termseries csv data.csv --period 30d --unit °C\n"
+        "  termseries csv heart.csv --period 1mo --resample 1m --aggregate mean\n"
         "  termseries csv temp.csv humidity.csv --period 7d\n"
     ),
 )
@@ -501,6 +515,19 @@ def csv_cmd(
         ),
     ] = "max",
     unit: Annotated[str, typer.Option(help="Value unit label")] = "value",
+    resample: Annotated[
+        str | None,
+        typer.Option(
+            help="Reduce into fixed UTC buckets (e.g. 1m, 5m, 1h)",
+            callback=_validate_resample,
+        ),
+    ] = None,
+    aggregate: Annotated[
+        str,
+        typer.Option(
+            help="Bucket reducer: mean, median, min, max, sum, count, first, last"
+        ),
+    ] = "mean",
 ) -> None:
     """Plot time-series data from local CSV files."""
     tz = ctx.obj["tz"]
@@ -509,7 +536,7 @@ def csv_cmd(
         ctx,
         files,
         period,
-        partial(fetch_csv_series, tz=tz),
+        partial(fetch_csv_series, tz=tz, resample=resample, aggregate=aggregate),
         fetching_message=f"Reading {', '.join(files)}…",
         value_unit=unit,
         anchor_now=True,
