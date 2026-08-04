@@ -2,12 +2,15 @@
 
 import math
 import warnings
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import pytest
 
 from termseries.render import (
+    _calendar_divider_locator,
     _display_series_name,
     _legend_layout,
     _output_png,
@@ -30,6 +33,25 @@ PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 class TestRenderPng:
+    def test_calendar_dividers_use_daily_lines_for_week_views(self) -> None:
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        locator = _calendar_divider_locator(
+            start, start + timedelta(days=7), timezone.utc
+        )
+        assert isinstance(locator, mdates.DayLocator)
+        assert locator.tz is timezone.utc
+
+    def test_calendar_dividers_adapt_to_visible_span(self) -> None:
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        assert isinstance(
+            _calendar_divider_locator(start, start + timedelta(hours=12), timezone.utc),
+            mdates.HourLocator,
+        )
+        assert isinstance(
+            _calendar_divider_locator(start, start + timedelta(days=90), timezone.utc),
+            mdates.MonthLocator,
+        )
+
     def test_display_series_name_truncates_long_label(self) -> None:
         name = "This is a deliberately long display label that should be truncated"
         assert _display_series_name(name).endswith("...")

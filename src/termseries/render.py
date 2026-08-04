@@ -6,12 +6,13 @@ import hashlib
 import math
 import sys
 from collections.abc import Callable, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta, tzinfo
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import matplotlib
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 from cycler import cycler
 
@@ -34,6 +35,26 @@ from termseries.terminal import (
 from termseries.types import TimeSeries
 
 _Transform = Callable[[Sequence[Any], Sequence[float]], tuple[list[Any], list[float]]]
+
+
+def _calendar_divider_locator(
+    start: datetime, end: datetime, tz: tzinfo | None
+) -> mdates.DateLocator:
+    """Choose unobtrusive calendar dividers for the visible time span.
+
+    Locators receive the display timezone so a daily divider occurs at local
+    midnight, rather than necessarily at midnight UTC.
+    """
+    span = end - start
+    if span <= timedelta(days=2):
+        return mdates.HourLocator(interval=6, tz=tz)  # type: ignore[no-untyped-call]
+    if span <= timedelta(days=45):
+        return mdates.DayLocator(interval=1, tz=tz)  # type: ignore[no-untyped-call]
+    if span <= timedelta(days=548):
+        return mdates.MonthLocator(interval=1, tz=tz)  # type: ignore[no-untyped-call]
+    if span <= timedelta(days=2190):
+        return mdates.MonthLocator(interval=3, tz=tz)  # type: ignore[no-untyped-call]
+    return mdates.YearLocator(tz=tz)  # type: ignore[no-untyped-call]
 
 
 def _display_series_name(name: str) -> str:
@@ -307,6 +328,26 @@ def _render_png(
             # datetime bounds are runtime-valid but untyped in matplotlib's
             # set_xlim stub.
             ax.set_xlim(left.astimezone(target_tz), right.astimezone(target_tz))  # type: ignore[arg-type]
+
+        left_num, right_num = ax.get_xlim()
+        visible_start = mdates.num2date(  # type: ignore[no-untyped-call]
+            left_num, tz=target_tz
+        )
+        visible_end = mdates.num2date(  # type: ignore[no-untyped-call]
+            right_num, tz=target_tz
+        )
+        ax.xaxis.set_minor_locator(
+            _calendar_divider_locator(visible_start, visible_end, target_tz)
+        )
+        ax.set_axisbelow(True)
+        ax.grid(
+            True,
+            which="minor",
+            axis="x",
+            color="0.5",
+            alpha=0.22,
+            linewidth=0.7,
+        )
 
         is_stock = value_unit == "USD"
         title_labels = {

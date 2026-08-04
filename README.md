@@ -31,6 +31,7 @@ or saves to file, with an optional interactive Textual TUI.
 ### Terminal Rendering
 - Auto-detect Kitty, iTerm2, and Sixel-capable terminals for inline PNG display
 - Fall back to writing a PNG file when no inline protocol is available
+- Adaptive vertical calendar dividers (hours, days, months, or years), aligned to `--tz`
 - Auto-detect dark/light terminal background for theme selection
 - Force dark/light theme or inline/file output via environment variables
 
