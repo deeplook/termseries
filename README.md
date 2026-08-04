@@ -73,6 +73,12 @@ Or with [uv](https://docs.astral.sh/uv/):
 uv tool install termseries
 ```
 
+Or run it without installing, via [`uvx`](https://docs.astral.sh/uv/guides/tools/):
+
+```bash
+uvx termseries yahoo TSLA AAPL MSFT
+```
+
 ## Quick Start
 
 ```bash
