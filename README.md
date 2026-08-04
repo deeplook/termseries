@@ -193,6 +193,28 @@ Quote patterns so your shell doesn't expand them first. The match isn't
 anchored to the end, so `sensor.*battery_level` also matches
 `sensor.phone_battery_level_2`.
 
+## Fitbit JSON conversion
+
+`tools/fitbit_to_csv.py` combines Fitbit JSON exports in `data/` into the
+standard two-column CSV consumed by `termseries csv`. Fitbit timestamps have no
+timezone marker, so the converter interprets them as `Europe/Berlin` by default
+and writes normalized UTC timestamps; override this with `--timezone` as needed.
+
+```bash
+python tools/fitbit_to_csv.py steps data data/steps.csv
+python tools/fitbit_to_csv.py heart data data/heart.csv
+python tools/fitbit_to_csv.py sleep data data/sleep.csv
+
+termseries csv data/steps.csv --unit steps --period max
+termseries csv data/heart.csv --unit bpm --period max
+termseries --line-style step-post --gaps show csv data/sleep.csv --unit stage --period max
+```
+
+The sleep CSV represents detailed main-session sleep stages as a numeric step
+series: `wake=0`, `REM=1`, `light=2`, and `deep=3`. The converter sorts records
+and removes duplicate timestamps, and uses a temporary on-disk index so large
+heart-rate exports do not need to fit in memory.
+
 ## Shared Options
 
 | Option | Description |
