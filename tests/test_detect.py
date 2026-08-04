@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import sys
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from termseries.detect import (
     _read_response,
@@ -33,6 +36,17 @@ class TestReadResponse:
             mock_stdin.fileno.return_value = 0
             assert _read_response(0.1) == b""
 
+    def test_no_termios_returns_empty(self) -> None:
+        """On platforms without termios/tty (e.g. Windows), return b'' up front."""
+        with (
+            patch("termseries.detect.termios", None),
+            patch("termseries.detect.tty", None),
+        ):
+            assert _read_response(0.1) == b""
+
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="mocks termios/tty, which don't exist here"
+    )
     def test_tty_reads_data_until_quiet(self) -> None:
         """With a real tty, read data until stream goes quiet."""
         with (
@@ -54,6 +68,9 @@ class TestReadResponse:
             result = _read_response(0.5)
         assert result == b"\x1b_Gresp\x1b\\"
 
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="mocks termios/tty, which don't exist here"
+    )
     def test_tty_empty_read_breaks(self) -> None:
         """An empty os.read() (EOF) breaks the loop."""
         with (

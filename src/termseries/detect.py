@@ -27,8 +27,10 @@ documented by:
 
 Platform compatibility
 ----------------------
-The module requires a Unix-like environment with ``termios`` support. Windows
-is not supported in the current implementation.
+Detection relies on ``termios``/``tty``, which only exist on Unix-like
+systems. On platforms without them (Windows), every public function returns
+a negative result (``False`` or ``b""``) without touching stdin/stdout,
+instead of raising.
 
 Usage
 -----
@@ -54,13 +56,20 @@ Notes
 import os
 import select
 import sys
-import termios
 import time
-import tty
+
+try:
+    import termios
+    import tty
+except ImportError:  # Windows has neither module
+    termios = None  # type: ignore[assignment]
+    tty = None  # type: ignore[assignment]
 
 
 def _read_response(timeout: float = 0.5) -> bytes:
     """Read terminal response in raw mode until data stops arriving or timeout."""
+    if termios is None or tty is None:
+        return b""
     try:
         fd = sys.stdin.fileno()
     except Exception:
