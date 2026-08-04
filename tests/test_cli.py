@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +17,21 @@ from termseries.cli import app
 from termseries.render import _output_png
 
 runner = CliRunner()
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _plain(output: str) -> str:
+    """Strip ANSI color codes Rich adds when it detects a color-capable terminal.
+
+    Typer's error rendering styles individual `--flag` tokens with their own
+    color runs, splitting substrings like '--last' across escape sequences;
+    whether that happens depends on the environment (e.g. GitHub Actions
+    forces color even for captured, non-tty output), so assertions against
+    raw result.output are flaky across environments.
+    """
+    return _ANSI_RE.sub("", output)
+
 
 _FAKE_PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 25  # minimal non-empty bytes
 _FAKE_DATA = {"FAKE": [(datetime(2024, 1, 1, tzinfo=timezone.utc), 100.0)]}
@@ -486,7 +502,7 @@ class TestTimeRangeOptions:
             app, ["yahoo", "FAKE", "--last", "7d", "--from", "2024-01-01"]
         )
         assert result.exit_code != 0
-        assert "either --last or --from/--to" in result.output
+        assert "either --last or --from/--to" in _plain(result.output)
 
     def test_first_uses_the_earliest_returned_point_as_its_anchor(self) -> None:
         data = {
@@ -523,7 +539,7 @@ class TestTimeRangeOptions:
             app, ["yahoo", "FAKE", "--first", "7d", "--from", "2024-01-01"]
         )
         assert result.exit_code != 0
-        assert "Use --first by itself" in result.output
+        assert "Use --first by itself" in _plain(result.output)
 
 
 class TestYahooCommand:
