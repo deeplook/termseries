@@ -577,7 +577,9 @@ def _build_app(
 
         def _debounced_rerender(self) -> None:
             self._resize_timer = None
-            if self._last_data is not None:
+            # self.query() targets the topmost screen; skip while a modal
+            # (e.g. HelpScreen) is on top, since it has no Select widgets.
+            if self._last_data is not None and len(self.screen_stack) == 1:
                 self.callback(*self._get_selections(), data=self._last_data)
 
         def on_resize(self, event: events.Resize) -> None:
