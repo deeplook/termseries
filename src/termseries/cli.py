@@ -23,6 +23,7 @@ from termseries.hass_source import _detect_unit, expand_entities, fetch_hass_ser
 from termseries.period import (
     TUI_PERIOD_CHOICES,
     parse_period,
+    parse_time_bound,
     polymarket_auto_interval,
     resolve_tz,
     xlim_now,
@@ -226,28 +227,14 @@ def _validate_first(value: str | None) -> str | None:
     return value
 
 
-def _parse_time_bound(value: str, *, now: datetime, tz: str) -> datetime:
-    """Parse an ISO-8601 instant, ``now``, or a relative/anchored start."""
-    if value == "now":
-        return now
+def _parse_time_bound(
+    value: str, *, now: datetime, tz: str, round_up: bool = False
+) -> datetime:
+    """Typer wrapper around :func:`termseries.period.parse_time_bound`."""
     try:
-        delta = parse_period(value, tz=resolve_tz(tz))
-    except ValueError:
-        delta = None
-    else:
-        if value in {"max", "auto"}:
-            raise typer.BadParameter("Time bounds cannot be 'max' or 'auto'.")
-        return now - delta  # type: ignore[operator]
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return parse_time_bound(value, now=now, tz=resolve_tz(tz), round_up=round_up)
     except ValueError as exc:
-        raise typer.BadParameter(
-            "Use an ISO-8601 date/time (e.g. 2026-07-01 or "
-            "2026-07-01T12:00:00Z), 'now', or a value such as 7d/ytd."
-        ) from exc
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=resolve_tz(tz))
-    return parsed.astimezone(timezone.utc)
+        raise typer.BadParameter(str(exc)) from exc
 
 
 def _resolve_time_range(
@@ -274,13 +261,26 @@ def _resolve_time_range(
         return resolved_last, resolved_last, None, None
     now = datetime.now(timezone.utc)
     start = _parse_time_bound(from_, now=now, tz=tz) if from_ else None
-    end = _parse_time_bound(to, now=now, tz=tz) if to else now
+    end = _parse_time_bound(to, now=now, tz=tz, round_up=True) if to else now
     if start is not None and end is not None and start > end:
         raise typer.BadParameter("--from must not be later than --to.")
     label = f"{from_ or 'start'}..{to or 'now'}"
-    # Source APIs accept rolling-period tokens; fetch their full available range
-    # and apply the exact interval once, consistently, in _run_source.
-    return "max", label, (start, end), None
+    # Source APIs accept rolling-period tokens; fetch a range that covers
+    # [start, end] and apply the exact bound once, consistently, in
+    # _run_source. When the window reaches up to (or past) "now" we know
+    # its span, so a day-count duration lets each source pick a properly
+    # sized native range -- e.g. Yahoo silently coarsens interval=1d data
+    # to monthly/quarterly bars when asked for range=max on a long-lived
+    # ticker, even though the actual requested window is narrow. A window
+    # anchored to an explicit past --to can't reuse this trick (Yahoo's
+    # range parameter always means "ending today"), so it still needs the
+    # full "max" history to locate an arbitrary historical window.
+    if start is not None and end >= now:
+        span_days = max((min(end, now) - start).days + 2, 1)
+        fetch_period = f"{span_days}d"
+    else:
+        fetch_period = "max"
+    return fetch_period, label, (start, end), None
 
 
 def _validate_resample(value: str | None) -> str | None:

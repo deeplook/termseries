@@ -40,7 +40,7 @@ or saves to file, with an optional interactive Textual TUI.
 - Force dark/light theme or inline/file output via environment variables
 
 ### Interactive TUI
-- Full-screen Textual TUI with dropdowns for period, aspect ratio, mode, and color cycle; "custom..." option in the Period menu for arbitrary values
+- Full-screen Textual TUI with dropdowns for period, aspect ratio, mode, and color cycle; "custom…" option in the Period menu for arbitrary values, and "from-to…" for an explicit date range (partial dates like `2024-05` are zero-padded to a full timestamp, rounding From down to the start and To up to the end, same as the CLI's `--from`/`--to`)
 - Live ticker/entity/file input with immediate re-render on submit
 - Debounced chart re-render on terminal resize using cached data
 - Auto-reload at a configurable interval (`--reload N`) or toggled with Ctrl+R
@@ -279,6 +279,16 @@ termseries csv readings.csv --first 7d
 `--from` and `--to` accept ISO-8601 dates/times (such as `2026-07-01` or
 `2026-07-01T12:00:00Z`), `now`, and the same relative/calendar expressions as
 `--last` (such as `7d` and `ytd`).
+
+Partial dates/times are zero-padded to a full timestamp, and the direction of
+padding depends on which bound you're filling in, so the range stays fully
+inclusive: `--from` rounds *down* to the start of the given granularity, while
+`--to` rounds *up* to its end (calendar-aware, so February gets 28 or 29 days
+correctly). For example, `--from 2025 --to 2026` expands to
+`2025-01-01T00:00:00` through `2026-12-31T23:59:59` — covering all of both
+years — not just the first instant of 2026. Likewise `--from 2026-05` starts
+at `2026-05-01T00:00:00` and `--to 2026-05` ends at `2026-05-31T23:59:59`.
+A fully-specified timestamp on either side is used as-is.
 
 Warning: `--first` is data-anchored, not calendar-anchored. Its effective start
 can change when a source adds or backfills older history, so use `--from` and
