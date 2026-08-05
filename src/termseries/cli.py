@@ -18,7 +18,7 @@ from termseries.detect import (
     supports_kitty_graphics,
     supports_sixel,
 )
-from termseries.gaps import insert_gaps
+from termseries.gaps import apply_gaps
 from termseries.hass_source import _detect_unit, expand_entities, fetch_hass_series
 from termseries.period import (
     TUI_PERIOD_CHOICES,
@@ -68,14 +68,6 @@ app = typer.Typer(
         "  termseries hass sensor.temperature --last 7d\n"
     ),
 )
-
-
-def _apply_gaps(data: dict[str, TimeSeries], gaps: str) -> dict[str, TimeSeries]:
-    """Apply gap processing to all series based on the --gaps value."""
-    if gaps == "connect":
-        return data
-    max_gap = None if gaps == "show" else parse_period(gaps)
-    return {name: insert_gaps(series, max_gap=max_gap) for name, series in data.items()}
 
 
 def _run_source(
@@ -128,6 +120,7 @@ def _run_source(
             tz=opts["tz"],
             line_style=opts["line_style"],
             theme=opts["theme"],
+            gaps=opts["gaps"],
             **interactive_kwargs,
         )
         raise typer.Exit()
@@ -160,7 +153,7 @@ def _run_source(
                     "No data left after applying the requested time range "
                     f"for: {', '.join(empty)}."
                 )
-        data = _apply_gaps(data, opts["gaps"])
+        data = apply_gaps(data, opts["gaps"])
         r = opts["ratio"] or (4, 1)
         render_kwargs: dict[str, Any] = {}
         if value_unit is not None:

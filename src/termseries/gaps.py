@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 from statistics import median
 
+from termseries.period import parse_period
 from termseries.types import TimeSeries
 
 
@@ -63,3 +64,11 @@ def insert_gaps(
         result.append(series[i])
 
     return result
+
+
+def apply_gaps(data: dict[str, TimeSeries], gaps: str) -> dict[str, TimeSeries]:
+    """Apply gap processing to all series based on a ``--gaps`` value."""
+    if gaps == "connect":
+        return data
+    max_gap = None if gaps == "show" else parse_period(gaps)
+    return {name: insert_gaps(series, max_gap=max_gap) for name, series in data.items()}

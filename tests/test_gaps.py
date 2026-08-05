@@ -8,8 +8,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import typer
 
-from termseries.cli import _apply_gaps, _validate_gaps
-from termseries.gaps import insert_gaps
+from termseries.cli import _validate_gaps
+from termseries.gaps import apply_gaps, insert_gaps
 from termseries.types import TimeSeries
 
 
@@ -137,12 +137,12 @@ class TestValidateGaps:
 class TestApplyGaps:
     def test_connect_returns_unchanged(self) -> None:
         data = {"A": _ts([0, 1, 2, 10, 11])}
-        result = _apply_gaps(data, "connect")
+        result = apply_gaps(data, "connect")
         assert result is data
 
     def test_show_inserts_nans(self) -> None:
         data = {"A": _ts([0, 1, 2, 10, 11])}
-        result = _apply_gaps(data, "show")
+        result = apply_gaps(data, "show")
         assert len(result["A"]) > len(data["A"])
         assert any(math.isnan(v) for _, v in result["A"])
 
@@ -150,10 +150,10 @@ class TestApplyGaps:
         # Gap of 8 minutes between t=2 and t=10
         data = {"A": _ts([0, 1, 2, 10, 11])}
         # 10m threshold: 8-min gap stays connected
-        result = _apply_gaps(data, "10m")
+        result = apply_gaps(data, "10m")
         assert not any(math.isnan(v) for _, v in result["A"])
         # 5m threshold: 8-min gap gets broken
-        result = _apply_gaps(data, "5m")
+        result = apply_gaps(data, "5m")
         assert any(math.isnan(v) for _, v in result["A"])
 
 
@@ -180,7 +180,7 @@ class TestEndToEnd:
         csv_file.write_text("\n".join(lines))
 
         data = fetch_csv_series([str(csv_file)], "max")
-        data = _apply_gaps(data, "show")
+        data = apply_gaps(data, "show")
 
         # Verify NaN was inserted
         series = list(data.values())[0]
@@ -217,7 +217,7 @@ class TestEndToEnd:
         data = fetch_csv_series([str(csv_file)], "max")
 
         # Threshold of 30m: 5-min gap connected, 60-min gap broken
-        result = _apply_gaps(data, "30m")
+        result = apply_gaps(data, "30m")
         series = list(result.values())[0]
         nan_count = sum(1 for _, v in series if math.isnan(v))
         # Only the large gap should be broken

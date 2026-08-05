@@ -10,6 +10,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+from termseries.gaps import apply_gaps
 from termseries.period import parse_period, parse_time_bound, resolve_tz, xlim_now
 from termseries.render import _render_png
 from termseries.terminal import (
@@ -39,6 +40,7 @@ def _build_app(
     line_style: str = "linear",
     anchor_now: bool = False,
     theme: str = "auto",
+    gaps: str = "connect",
 ) -> Any:
     """Build and return the TermSeriesApp without running it.
 
@@ -423,6 +425,9 @@ def _build_app(
             try:
                 if data is None:
                     data = fetch_fn(columns, fetch_period)
+                    just_fetched = data
+                else:
+                    just_fetched = None
                 xlim = None
                 if explicit_range is not None:
                     start, end = explicit_range
@@ -445,6 +450,8 @@ def _build_app(
                     xlim = (start or min(all_ts), end or max(all_ts))
                 elif anchor_now:
                     xlim = xlim_now(period, data, tz=resolve_tz(tz))
+                if just_fetched is not None:
+                    data = apply_gaps(data, gaps)
                 png_bytes = _render_png(
                     data,
                     ratio_tuple,
@@ -777,6 +784,7 @@ def _run_interactive(
     line_style: str = "linear",
     anchor_now: bool = False,
     theme: str = "auto",
+    gaps: str = "connect",
 ) -> None:
     """Launch the Textual-based interactive chart viewer."""
     _build_app(
@@ -794,4 +802,5 @@ def _run_interactive(
         line_style=line_style,
         anchor_now=anchor_now,
         theme=theme,
+        gaps=gaps,
     ).run()
