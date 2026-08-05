@@ -375,7 +375,13 @@ class TestFromToSelect:
                 assert pilot.app.query(Select)[0].value == "1mo"
 
     async def test_valid_from_to_range_is_added_and_filters_data(self) -> None:
-        """Submitting from/to dates filters fetched data to that window."""
+        """Submitting from/to dates filters fetched data to that window.
+
+        Known flaky on the Windows CI runner: the FromToScreen modal's
+        Input.Submitted handling races with pilot timing there, so this
+        occasionally fails on a slower runner and passes on rerun. Not
+        observed on Linux/macOS runners.
+        """
         data = {
             "TSLA": [
                 (datetime(2024, 1, 1, tzinfo=timezone.utc), 1.0),
@@ -472,7 +478,13 @@ class TestFromToSelect:
         assert calls == []
 
     async def test_from_later_than_to_warns_and_reverts(self) -> None:
-        """A from-date after the to-date is rejected without changing period."""
+        """A from-date after the to-date is rejected without changing period.
+
+        Known flaky on the Windows CI runner: the FromToScreen modal's
+        Input.Submitted handling races with pilot timing there, so this
+        occasionally fails on a slower runner and passes on rerun. Not
+        observed on Linux/macOS runners.
+        """
         with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
             async with _make_app().run_test() as pilot:
                 await pilot.pause()
