@@ -400,7 +400,26 @@ def _build_app(
                 return
             columns = tickers_str.split()
             explicit_range = self._explicit_ranges.get(period)
-            fetch_period = "max" if explicit_range is not None else period
+            if explicit_range is None:
+                fetch_period = period
+            else:
+                range_start, range_end = explicit_range
+                now = datetime.now(timezone.utc)
+                # range_end is None for a blank "To" field, meaning the
+                # window reaches up to "now" -- recomputed fresh on every
+                # call (including auto-reload ticks) rather than frozen at
+                # whenever the modal was accepted.
+                effective_end = range_end if range_end is not None else now
+                # See the matching comment in cli.py's _resolve_time_range:
+                # a window reaching up to "now" can use a sized duration so
+                # Yahoo doesn't silently coarsen interval=1d to monthly bars
+                # the way it does for range=max on long-lived tickers; a
+                # window anchored to a past end needs the full history.
+                if range_start is not None and effective_end >= now:
+                    span_days = max((min(effective_end, now) - range_start).days + 2, 1)
+                    fetch_period = f"{span_days}d"
+                else:
+                    fetch_period = "max"
             try:
                 if data is None:
                     data = fetch_fn(columns, fetch_period)
@@ -684,13 +703,13 @@ def _build_app(
                 end = (
                     parse_time_bound(to_raw, now=now, tz=resolved_tz, round_up=True)
                     if to_raw
-                    else now
+                    else None
                 )
             except ValueError as e:
                 self.notify(str(e), severity="warning")
                 self._revert_period_select()
                 return
-            if start is not None and start > end:
+            if start is not None and end is not None and start > end:
                 self.notify("From must not be later than To", severity="warning")
                 self._revert_period_select()
                 return

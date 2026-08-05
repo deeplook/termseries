@@ -497,6 +497,45 @@ class TestTimeRangeOptions:
             datetime(2024, 1, 3, 23, 59, 59, tzinfo=timezone.utc),
         )
 
+    def test_open_ended_bound_uses_a_sized_duration_not_max(self) -> None:
+        """Regression test: --from with no --to (so the window reaches
+        "now") must not fetch range=max -- Yahoo silently coarsens
+        interval=1d data to monthly/quarterly bars for range=max on
+        long-lived tickers, even when the actual requested window is
+        narrow. A day-count duration lets Yahoo pick a properly sized
+        native range instead, so interval=1d is honored."""
+        with (
+            patch(
+                "termseries.cli.fetch_yahoo_series", return_value=_FAKE_DATA
+            ) as fetch,
+            patch("termseries.cli._render_png", return_value=_FAKE_PNG),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(app, ["yahoo", "FAKE", "--from", "2020-01-01"])
+
+        assert result.exit_code == 0
+        fetch_period = fetch.call_args.args[1]
+        assert fetch_period != "max"
+        assert re.fullmatch(r"\d+d", fetch_period)
+
+    def test_past_to_bound_still_fetches_max(self) -> None:
+        """A window anchored to a --to in the past can't use the sized-
+        duration trick (Yahoo's range parameter always means "ending
+        today"), so it must keep fetching full history to correctly
+        locate an arbitrary historical window."""
+        data = {"FAKE": [(datetime(2020, 3, 1, tzinfo=timezone.utc), 100.0)]}
+        with (
+            patch("termseries.cli.fetch_yahoo_series", return_value=data) as fetch,
+            patch("termseries.cli._render_png", return_value=_FAKE_PNG),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(
+                app, ["yahoo", "FAKE", "--from", "2020-01-01", "--to", "2020-06-01"]
+            )
+
+        assert result.exit_code == 0
+        fetch.assert_called_once_with(["FAKE"], "max", interval="auto", tz="UTC")
+
     def test_year_only_to_bound_covers_the_whole_year(self) -> None:
         """Regression test: a ticker that only trades within the --to year
         (e.g. it IPO'd there) must not be dropped by --from 2025 --to 2026

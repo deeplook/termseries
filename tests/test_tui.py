@@ -6,6 +6,7 @@ No real terminal, PTY, or network I/O is required.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any
@@ -419,6 +420,30 @@ class TestFromToSelect:
             datetime(2024, 6, 30, 23, 59, 59, tzinfo=timezone.utc),
         )
         assert "2024-05..2024-06" in option_values
+
+    async def test_open_ended_range_uses_a_sized_duration_not_max(self) -> None:
+        """Regression test: leaving "To" blank (so the window reaches
+        "now") must not fetch "max" -- Yahoo silently coarsens interval=1d
+        data to monthly/quarterly bars for range=max on long-lived
+        tickers, even when the actual requested window is narrow."""
+        fetched_periods: list[str] = []
+
+        def fetch(cols: list[str], period: str) -> dict:  # type: ignore[type-arg]
+            fetched_periods.append(period)
+            return {c: make_series() for c in cols}
+
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app(fetch_fn=fetch).run_test() as pilot:
+                await pilot.pause()
+                pilot.app.query(Select)[0].value = _FROM_TO
+                await pilot.pause()
+                pilot.app.screen.query_one("#from-input", Input).value = "2020-01-01"
+                pilot.app.screen.query_one("#to-input", Input).focus()
+                await pilot.press("enter")
+                await pilot.pause()
+
+        assert "max" not in fetched_periods
+        assert any(re.fullmatch(r"\d+d", p) for p in fetched_periods)
 
     async def test_sentinel_never_reaches_fetch_fn_as_a_period(self) -> None:
         """Regression test for a real bug: an Input.Submitted event fired

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `--from`/`--to` (CLI and TUI) now pad partial dates direction-aware: `--from` rounds down to the start of the given granularity, `--to` rounds up to its end (calendar-aware month lengths). Previously both rounded down, so e.g. `--from 2025 --to 2026` resolved to `2026-01-01T00:00:00` as the end bound and silently dropped any data that only existed within 2026
+- Yahoo: `--from`/`--to` windows reaching up to "now" (CLI and TUI) now request a properly sized native range instead of always `range=max`. Yahoo silently coarsens `interval=1d` data to monthly/quarterly bars when `range=max` is requested for a long-lived ticker (e.g. `--from 2026` on TSLA/AAPL returned ~1 point/month instead of daily data), even though the actual requested window was narrow
 
 ## [0.2.0] - 2026-08-04
 

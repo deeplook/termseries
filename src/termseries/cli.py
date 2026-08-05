@@ -265,9 +265,22 @@ def _resolve_time_range(
     if start is not None and end is not None and start > end:
         raise typer.BadParameter("--from must not be later than --to.")
     label = f"{from_ or 'start'}..{to or 'now'}"
-    # Source APIs accept rolling-period tokens; fetch their full available range
-    # and apply the exact interval once, consistently, in _run_source.
-    return "max", label, (start, end), None
+    # Source APIs accept rolling-period tokens; fetch a range that covers
+    # [start, end] and apply the exact bound once, consistently, in
+    # _run_source. When the window reaches up to (or past) "now" we know
+    # its span, so a day-count duration lets each source pick a properly
+    # sized native range -- e.g. Yahoo silently coarsens interval=1d data
+    # to monthly/quarterly bars when asked for range=max on a long-lived
+    # ticker, even though the actual requested window is narrow. A window
+    # anchored to an explicit past --to can't reuse this trick (Yahoo's
+    # range parameter always means "ending today"), so it still needs the
+    # full "max" history to locate an arbitrary historical window.
+    if start is not None and end >= now:
+        span_days = max((min(end, now) - start).days + 2, 1)
+        fetch_period = f"{span_days}d"
+    else:
+        fetch_period = "max"
+    return fetch_period, label, (start, end), None
 
 
 def _validate_resample(value: str | None) -> str | None:
