@@ -774,18 +774,21 @@ def hass(
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
 
+    tz = ctx.obj["tz"]
     period, period_label, time_range, first_period = _resolve_time_range(
-        last, first, from_, to, default_last="7d", tz=ctx.obj["tz"]
+        last, first, from_, to, default_last="7d", tz=tz
     )
     _run_source(
         ctx,
         resolved_entities,
         period,
-        partial(fetch_hass_series, tz=ctx.obj["tz"]),
+        partial(fetch_hass_series, tz=tz),
         fetching_message=(
             f"Fetching {', '.join(resolved_entities)} from Home Assistant…"
         ),
         value_unit=resolved_unit,
+        anchor_now=True,
+        xlim_fn=lambda data: xlim_now(period, data, tz=resolve_tz(tz)),
         time_range=time_range,
         first_period=first_period,
         period_label=period_label,
