@@ -6,6 +6,7 @@ No real terminal, PTY, or network I/O is required.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any
 from unittest.mock import patch
@@ -22,9 +23,10 @@ from tests.conftest import make_series
 
 _PERIOD_CHOICES = ["7d", "1mo", "3mo", "1y"]
 
-# Mirrors the closure-local sentinel in termseries.tui that marks the
-# "custom..." period option (it is not importable, so keep this in sync).
+# Mirrors the closure-local sentinels in termseries.tui that mark the
+# "custom…" and "from-to…" period options (not importable, keep in sync).
 _CUSTOM = "__custom__"
+_FROM_TO = "__from_to__"
 
 
 def _make_png(width: int = 4, height: int = 3) -> bytes:
@@ -259,7 +261,7 @@ class TestPeriodSelect:
         assert "1mo" in calls
 
     async def test_custom_option_reveals_custom_input(self) -> None:
-        """Picking the 'custom...' sentinel reveals the free-form period input."""
+        """Picking the 'custom…' sentinel reveals the free-form period input."""
         with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
             async with _make_app().run_test() as pilot:
                 await pilot.pause()
@@ -312,6 +314,155 @@ class TestPeriodSelect:
                 await pilot.press("escape")
                 await pilot.pause()
                 assert pilot.app.query_one("#custom-period", Input).display is False
+
+
+class TestPeriodSelectWidth:
+    async def test_custom_and_from_to_labels_do_not_wrap_in_overlay(self) -> None:
+        """The full period list is long enough to scroll the overlay; the
+        scrollbar eats extra width, so 'custom…'/'from-to…' need a wider
+        buffer than the non-scrolling dropdowns or they wrap mid-word."""
+        import re
+
+        from textual.widgets._select import SelectOverlay
+
+        from termseries.period import TUI_PERIOD_CHOICES
+
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app(period_choices=TUI_PERIOD_CHOICES).run_test(
+                size=(60, 20)
+            ) as pilot:
+                await pilot.pause()
+                s1 = pilot.app.query(Select)[0]
+                s1.focus()
+                await pilot.press("enter")
+                overlay = s1.query_one(SelectOverlay)
+                overlay.action_last()
+                await pilot.pause()
+                svg = pilot.app.export_screenshot()
+                texts = {
+                    t.strip() for t in re.findall(r">([^<]+)</text>", svg) if t.strip()
+                }
+        assert "custom…" in texts
+        assert "from-to…" in texts
+
+
+class TestFromToSelect:
+    async def test_selecting_from_to_opens_modal(self) -> None:
+        """Picking the 'from-to…' sentinel pushes the modal dialog."""
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app().run_test() as pilot:
+                await pilot.pause()
+                assert len(pilot.app.screen_stack) == 1
+                pilot.app.query(Select)[0].value = _FROM_TO
+                await pilot.pause()
+                assert len(pilot.app.screen_stack) == 2
+                assert pilot.app.screen.query_one("#from-input", Input)
+                assert pilot.app.screen.query_one("#to-input", Input)
+
+    async def test_escape_cancels_from_to_modal(self) -> None:
+        """Escape on the modal dismisses it without changing the period."""
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app().run_test() as pilot:
+                await pilot.pause()
+                pilot.app.query(Select)[0].value = "1mo"
+                await pilot.pause()
+                pilot.app.query(Select)[0].value = _FROM_TO
+                await pilot.pause()
+                await pilot.press("escape")
+                await pilot.pause()
+                assert len(pilot.app.screen_stack) == 1
+                assert pilot.app.query(Select)[0].value == "1mo"
+
+    async def test_valid_from_to_range_is_added_and_filters_data(self) -> None:
+        """Submitting from/to dates filters fetched data to that window."""
+        data = {
+            "TSLA": [
+                (datetime(2024, 1, 1, tzinfo=timezone.utc), 1.0),
+                (datetime(2024, 5, 15, tzinfo=timezone.utc), 2.0),
+                (datetime(2024, 12, 1, tzinfo=timezone.utc), 3.0),
+            ]
+        }
+        captured: dict[str, object] = {}
+        fetched_periods: list[str] = []
+
+        def fetch(cols: list[str], period: str) -> dict:  # type: ignore[type-arg]
+            fetched_periods.append(period)
+            captured["fetch_period"] = period
+            return {c: list(data["TSLA"]) for c in cols}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["series"] = series
+            captured["xlim"] = kwargs["xlim"]
+            return _SMALL_PNG
+
+        with patch("termseries.tui._render_png", side_effect=render):
+            async with _make_app(fetch_fn=fetch).run_test() as pilot:
+                await pilot.pause()
+                pilot.app.query(Select)[0].value = _FROM_TO
+                await pilot.pause()
+                pilot.app.screen.query_one("#from-input", Input).value = "2024-05"
+                pilot.app.screen.query_one("#to-input", Input).value = "2024-06"
+                pilot.app.screen.query_one("#to-input", Input).focus()
+                await pilot.press("enter")
+                await pilot.pause()
+                option_values = {v for _, v in pilot.app.query(Select)[0]._options}
+
+        # The Input.Submitted event must not bubble out of the modal and
+        # reach the app while the Period select still holds the raw
+        # "__from_to__" sentinel -- that would pass the sentinel straight
+        # through to fetch_fn as if it were a period string.
+        assert _FROM_TO not in fetched_periods
+        assert captured["fetch_period"] == "max"
+        assert captured["series"] == {"TSLA": [data["TSLA"][1]]}
+        assert captured["xlim"] == (
+            datetime(2024, 5, 1, tzinfo=timezone.utc),
+            datetime(2024, 6, 30, 23, 59, 59, tzinfo=timezone.utc),
+        )
+        assert "2024-05..2024-06" in option_values
+
+    async def test_sentinel_never_reaches_fetch_fn_as_a_period(self) -> None:
+        """Regression test for a real bug: an Input.Submitted event fired
+        while the Period select still holds the raw '__from_to__' sentinel
+        (e.g. one that reaches the app before the modal has replaced it
+        with the real range label) must not be treated as a period -- it
+        used to be passed straight through to fetch_fn, which then called
+        parse_period('__from_to__') and raised 'Invalid period ...'."""
+        calls: list[str] = []
+
+        def fetch(cols: list[str], period: str) -> dict:  # type: ignore[type-arg]
+            calls.append(period)
+            return {c: make_series() for c in cols}
+
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app(fetch_fn=fetch).run_test() as pilot:
+                await pilot.pause()
+                calls.clear()
+                pilot.app.query(Select)[0].value = _FROM_TO
+                await pilot.pause()
+                # Simulate the sentinel still being selected when something
+                # triggers a re-fetch (e.g. a stray bubbled Input.Submitted).
+                pilot.app.callback(*pilot.app._get_selections())
+                await pilot.pause()
+
+        assert calls == []
+
+    async def test_from_later_than_to_warns_and_reverts(self) -> None:
+        """A from-date after the to-date is rejected without changing period."""
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app().run_test() as pilot:
+                await pilot.pause()
+                pilot.app.query(Select)[0].value = "1mo"
+                await pilot.pause()
+                pilot.app.query(Select)[0].value = _FROM_TO
+                await pilot.pause()
+                pilot.app.screen.query_one("#from-input", Input).value = "2024-06"
+                pilot.app.screen.query_one("#to-input", Input).value = "2024-05"
+                pilot.app.screen.query_one("#to-input", Input).focus()
+                await pilot.press("enter")
+                await pilot.pause()
+                assert pilot.app.is_running
+                assert len(pilot.app.screen_stack) == 1
+                assert pilot.app.query(Select)[0].value == "1mo"
 
 
 class TestErrorRecovery:

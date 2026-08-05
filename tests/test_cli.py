@@ -494,8 +494,35 @@ class TestTimeRangeOptions:
         assert captured["series"] == {"FAKE": data["FAKE"][1:]}
         assert captured["xlim"] == (
             datetime(2024, 1, 2, tzinfo=timezone.utc),
-            datetime(2024, 1, 3, tzinfo=timezone.utc),
+            datetime(2024, 1, 3, 23, 59, 59, tzinfo=timezone.utc),
         )
+
+    def test_year_only_to_bound_covers_the_whole_year(self) -> None:
+        """Regression test: a ticker that only trades within the --to year
+        (e.g. it IPO'd there) must not be dropped by --from 2025 --to 2026
+        just because --to 2026 used to mean "2026-01-01T00:00:00"."""
+        data = {
+            "TSLA": [(datetime(2025, 6, 1, tzinfo=timezone.utc), 1.0)],
+            "SPCX": [(datetime(2026, 3, 1, tzinfo=timezone.utc), 1.0)],
+        }
+        captured: dict[str, object] = {}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["series"] = series
+            return _FAKE_PNG
+
+        with (
+            patch("termseries.cli.fetch_yahoo_series", return_value=data),
+            patch("termseries.cli._render_png", side_effect=render),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(
+                app,
+                ["yahoo", "TSLA", "SPCX", "--from", "2025", "--to", "2026"],
+            )
+
+        assert result.exit_code == 0, _plain(result.output)
+        assert captured["series"] == data
 
     def test_last_cannot_be_combined_with_explicit_bounds(self) -> None:
         result = runner.invoke(

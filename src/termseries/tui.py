@@ -5,11 +5,12 @@ from __future__ import annotations
 import base64
 import time
 from collections.abc import Callable
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-from termseries.period import parse_period, resolve_tz, xlim_now
+from termseries.period import parse_period, parse_time_bound, resolve_tz, xlim_now
 from termseries.render import _render_png
 from termseries.terminal import (
     _copy_to_clipboard,
@@ -105,6 +106,7 @@ def _build_app(
         from textual_image.widget import Image  # type: ignore[no-redef,assignment]
 
     _CUSTOM = "__custom__"
+    _FROM_TO = "__from_to__"
 
     _HELP_TEXT = """\
 [bold]termseries — interactive mode[/bold]
@@ -148,6 +150,64 @@ def _build_app(
         def on_key(self, event: events.Key) -> None:
             event.stop()
             self.dismiss()
+
+    class FromToScreen(ModalScreen[tuple[str, str] | None]):  # type: ignore
+        """Modal dialog collecting a --from/--to date range.
+
+        Dismisses with a ``(from_value, to_value)`` tuple on submit (either
+        value may be an empty string, meaning "unbounded"/"now"), or ``None``
+        if cancelled with Escape.
+        """
+
+        CSS = """
+        FromToScreen {
+            align: center middle;
+        }
+        #from-to-panel {
+            background: $surface;
+            border: round $primary;
+            padding: 1 3;
+            width: auto;
+            height: auto;
+        }
+        #from-to-panel Input {
+            width: 30;
+            margin-bottom: 1;
+        }
+        """
+
+        def compose(self) -> ComposeResult:
+            from textual.containers import Vertical
+
+            with Vertical(id="from-to-panel"):
+                yield Static(
+                    "[bold]From / To[/bold]  "
+                    "[dim](YYYY-MM-DD, partial dates zero-fill; "
+                    "e.g. 2024-05 or 2024)[/dim]"
+                )
+                yield Input(placeholder="From (blank = earliest)", id="from-input")
+                yield Input(placeholder="To (blank = now)", id="to-input")
+
+        def on_mount(self) -> None:
+            self.query_one("#from-input", Input).focus()
+
+        def on_input_submitted(self, event: Input.Submitted) -> None:
+            event.stop()
+            if event.input.id == "from-input":
+                self.query_one("#to-input", Input).focus()
+            else:
+                self._submit()
+
+        def _submit(self) -> None:
+            from_value = self.query_one("#from-input", Input).value.strip()
+            to_value = self.query_one("#to-input", Input).value.strip()
+            self.dismiss((from_value, to_value))
+
+        def on_key(self, event: events.Key) -> None:
+            if event.key == "escape":
+                event.stop()
+                event.prevent_default()
+                self.dismiss(None)
 
     class TermSeriesApp(App):  # type: ignore
         BINDINGS = [
@@ -217,20 +277,33 @@ def _build_app(
 
         _last_period_value: str | None = None
 
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            self._explicit_ranges: dict[
+                str, tuple[datetime | None, datetime | None]
+            ] = {}
+
         def compose(self) -> ComposeResult:
             has_columns = bool(initial_columns)
             with Horizontal(id="menu"):
                 periods = list(period_choices)
                 if period and period not in periods:
                     periods.append(period)
-                options = [(p, p) for p in periods] + [("custom...", _CUSTOM)]
+                options = [(p, p) for p in periods] + [
+                    ("custom…", _CUSTOM),
+                    ("from-to…", _FROM_TO),
+                ]
                 s1: Select[str] = Select(options, prompt="Period", allow_blank=True)
                 if period and period in periods:
                     s1.value = period
                 elif has_columns:
                     s1.value = periods[0]
-                max_len1 = max(len(v) for v in [*periods, "Period", "custom..."])
-                s1.styles.width = max_len1 + 6
+                max_len1 = max([len(label) for label, _ in options] + [len("Period")])
+                # +8, not +6 like the other dropdowns: with this many options the
+                # overlay scrolls, and its scrollbar eats extra width that a
+                # non-scrolling dropdown (Ratio, Mode, Colors) doesn't need to
+                # budget for.
+                s1.styles.width = max_len1 + 8
                 yield s1
                 yield Input(placeholder="e.g. 14d, 2w", id="custom-period")
 
@@ -326,9 +399,33 @@ def _build_app(
                 self.notify("Enter at least one ticker symbol", severity="warning")
                 return
             columns = tickers_str.split()
+            explicit_range = self._explicit_ranges.get(period)
+            fetch_period = "max" if explicit_range is not None else period
             try:
                 if data is None:
-                    data = fetch_fn(columns, period)
+                    data = fetch_fn(columns, fetch_period)
+                xlim = None
+                if explicit_range is not None:
+                    start, end = explicit_range
+                    data = {
+                        name: [
+                            (dt, v)
+                            for dt, v in series
+                            if (start is None or dt >= start)
+                            and (end is None or dt <= end)
+                        ]
+                        for name, series in data.items()
+                    }
+                    empty = [name for name, series in data.items() if not series]
+                    if empty:
+                        raise RuntimeError(
+                            "No data left after applying the requested time "
+                            f"range for: {', '.join(empty)}."
+                        )
+                    all_ts = [dt for series in data.values() for dt, _ in series]
+                    xlim = (start or min(all_ts), end or max(all_ts))
+                elif anchor_now:
+                    xlim = xlim_now(period, data, tz=resolve_tz(tz))
                 png_bytes = _render_png(
                     data,
                     ratio_tuple,
@@ -339,9 +436,7 @@ def _build_app(
                     style_override=style_override,
                     tz=tz,
                     line_style=line_style,
-                    xlim=xlim_now(period, data, tz=resolve_tz(tz))
-                    if anchor_now
-                    else None,
+                    xlim=xlim,
                     theme=theme,
                     save_dpi=_save_dpi,
                 )
@@ -368,7 +463,9 @@ def _build_app(
             selects = self.query(Select)
             raw_period = selects[0].value
             period: str | None = (
-                str(raw_period) if raw_period not in (Select.BLANK, _CUSTOM) else None
+                str(raw_period)
+                if raw_period not in (Select.BLANK, _CUSTOM, _FROM_TO)
+                else None
             )
             ratio: str | None = (
                 str(selects[1].value) if selects[1].value != Select.BLANK else None
@@ -518,6 +615,9 @@ def _build_app(
                 custom_input.display = True
                 custom_input.focus()
                 return
+            if period_select.value == _FROM_TO:
+                self.push_screen(FromToScreen(), self._accept_from_to)
+                return
             self._last_period_value = (
                 str(period_select.value)
                 if period_select.value != Select.BLANK
@@ -552,12 +652,62 @@ def _build_app(
             if value not in existing_values:
                 new_options = [o for o in current_options if o[1] != _CUSTOM] + [
                     (value, value),
-                    ("custom...", _CUSTOM),
+                    ("custom…", _CUSTOM),
                 ]
                 period_select.set_options(new_options)  # type: ignore[arg-type]
             self._reverting = True
             period_select.value = value
             self._last_period_value = value
+            self._reverting = False
+            self.callback(*self._get_selections())
+
+        def _revert_period_select(self) -> None:
+            period_select: Select[str] = self.query(Select)[0]
+            self._reverting = True
+            period_select.value = (
+                self._last_period_value if self._last_period_value else Select.BLANK
+            )
+
+        def _accept_from_to(self, result: tuple[str, str] | None) -> None:
+            if result is None:
+                self._revert_period_select()
+                return
+            from_raw, to_raw = result
+            now = datetime.now(timezone.utc)
+            resolved_tz = resolve_tz(tz)
+            try:
+                start = (
+                    parse_time_bound(from_raw, now=now, tz=resolved_tz)
+                    if from_raw
+                    else None
+                )
+                end = (
+                    parse_time_bound(to_raw, now=now, tz=resolved_tz, round_up=True)
+                    if to_raw
+                    else now
+                )
+            except ValueError as e:
+                self.notify(str(e), severity="warning")
+                self._revert_period_select()
+                return
+            if start is not None and start > end:
+                self.notify("From must not be later than To", severity="warning")
+                self._revert_period_select()
+                return
+            label = f"{from_raw or 'start'}..{to_raw or 'now'}"
+            self._explicit_ranges[label] = (start, end)
+            period_select: Select[str] = self.query(Select)[0]
+            current_options = list(period_select._options)
+            existing_values = {v for _, v in current_options}
+            if label not in existing_values:
+                new_options = [o for o in current_options if o[1] != _FROM_TO] + [
+                    (label, label),
+                    ("from-to…", _FROM_TO),
+                ]
+                period_select.set_options(new_options)  # type: ignore[arg-type]
+            self._reverting = True
+            period_select.value = label
+            self._last_period_value = label
             self._reverting = False
             self.callback(*self._get_selections())
 

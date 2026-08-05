@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 import re
 from datetime import datetime, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo
@@ -20,6 +21,102 @@ _UNIT_TO_TIMEDELTA: dict[str, timedelta] = {
 }
 
 _TO_DATE_PERIODS = frozenset({"ytd", "mtd", "wtd", "dtd", "htd"})
+
+
+_TZ_SUFFIX_RE = re.compile(r"(Z|[+-]\d{2}:\d{2})$")
+
+
+def pad_datetime_str(value: str, *, round_up: bool = False) -> str:
+    """Fill missing trailing components of a partial ISO-8601 string.
+
+    By default, missing components are zero-filled to the *start* of the
+    given granularity: ``"2024"`` -> ``"2024-01-01T00:00:00"``, ``"2024-05"``
+    -> ``"2024-05-01T00:00:00"``, ``"2024-05-01T12"`` ->
+    ``"2024-05-01T12:00:00"``.
+
+    With ``round_up=True``, missing components instead fill to the *end* of
+    the given granularity: ``"2024"`` -> ``"2024-12-31T23:59:59"``,
+    ``"2024-05"`` -> ``"2024-05-31T23:59:59"`` (calendar-aware month length),
+    ``"2024-05-17"`` -> ``"2024-05-17T23:59:59"``. Use this for a ``--to``
+    bound so e.g. ``--to 2026`` covers all of 2026, not just its first
+    instant.
+
+    A trailing ``Z`` or ``+HH:MM``/``-HH:MM`` offset is preserved as-is.
+    """
+    value = value.strip()
+    tz_match = _TZ_SUFFIX_RE.search(value)
+    tz_suffix = ""
+    if tz_match:
+        tz_suffix = tz_match.group(1)
+        value = value[: tz_match.start()]
+
+    if "T" in value:
+        date_part, _, time_part = value.partition("T")
+    elif " " in value:
+        date_part, _, time_part = value.partition(" ")
+    else:
+        date_part, time_part = value, ""
+
+    date_components = date_part.split("-") if date_part else []
+    if round_up:
+        if len(date_components) == 1:
+            date_components.append("12")
+        if len(date_components) == 2:
+            year, month = int(date_components[0]), int(date_components[1])
+            date_components.append(str(calendar.monthrange(year, month)[1]))
+    else:
+        while len(date_components) < 3:
+            date_components.append("01")
+    date_part = "-".join(
+        c if i == 0 else f"{int(c):02d}" for i, c in enumerate(date_components[:3])
+    )
+
+    time_components = time_part.split(":") if time_part else []
+    if round_up:
+        if not time_components:
+            time_components = ["23", "59", "59"]
+        else:
+            while len(time_components) < 3:
+                time_components.append("59")
+    else:
+        while len(time_components) < 3:
+            time_components.append("00")
+    time_part = ":".join(time_components[:3])
+
+    return f"{date_part}T{time_part}{tz_suffix}"
+
+
+def parse_time_bound(
+    value: str, *, now: datetime, tz: tzinfo | None, round_up: bool = False
+) -> datetime:
+    """Parse an ISO-8601 instant, ``"now"``, or a relative/anchored start.
+
+    Partial ISO dates/times (e.g. ``"2024-05"``) are padded to the right via
+    :func:`pad_datetime_str`; pass ``round_up=True`` for a ``--to``-style
+    bound so a partial date covers through its end, not just its start.
+    Raises ``ValueError`` on invalid input.
+    """
+    if value == "now":
+        return now
+    try:
+        delta = parse_period(value, tz=tz)
+    except ValueError:
+        delta = None
+    else:
+        if value in ("max", "auto"):
+            raise ValueError("Time bounds cannot be 'max' or 'auto'.")
+        assert delta is not None  # "max"/"auto" handled above
+        return now - delta
+    try:
+        parsed = datetime.fromisoformat(pad_datetime_str(value, round_up=round_up))
+    except ValueError as exc:
+        raise ValueError(
+            "Use an ISO-8601 date/time (e.g. 2026-07-01 or "
+            "2026-07-01T12:00:00Z), 'now', or a value such as 7d/ytd."
+        ) from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=tz)
+    return parsed.astimezone(timezone.utc)
 
 
 def resolve_tz(tz: str) -> tzinfo | None:

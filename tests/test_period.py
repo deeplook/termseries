@@ -9,7 +9,9 @@ import pytest
 from termseries.period import (
     _to_date_cutoff,
     filter_period,
+    pad_datetime_str,
     parse_period,
+    parse_time_bound,
     resolve_tz,
     xlim_now,
     yahoo_auto_interval,
@@ -109,6 +111,122 @@ class TestResolveTz:
         tz = resolve_tz("America/Los_Angeles")
         assert tz is not None
         assert str(tz) == "America/Los_Angeles"
+
+
+# ===================================================================
+# pad_datetime_str
+# ===================================================================
+
+
+class TestPadDatetimeStr:
+    def test_year_only(self) -> None:
+        assert pad_datetime_str("2024") == "2024-01-01T00:00:00"
+
+    def test_year_month(self) -> None:
+        assert pad_datetime_str("2024-05") == "2024-05-01T00:00:00"
+
+    def test_full_date(self) -> None:
+        assert pad_datetime_str("2024-05-17") == "2024-05-17T00:00:00"
+
+    def test_date_with_hour(self) -> None:
+        assert pad_datetime_str("2024-05-17T12") == "2024-05-17T12:00:00"
+
+    def test_date_with_hour_minute(self) -> None:
+        assert pad_datetime_str("2024-05-17T12:30") == "2024-05-17T12:30:00"
+
+    def test_full_datetime_unchanged(self) -> None:
+        assert pad_datetime_str("2024-05-17T12:30:45") == "2024-05-17T12:30:45"
+
+    def test_space_separator(self) -> None:
+        assert pad_datetime_str("2024-05-17 12:30") == "2024-05-17T12:30:00"
+
+    def test_preserves_z_suffix(self) -> None:
+        assert pad_datetime_str("2024-05Z") == "2024-05-01T00:00:00Z"
+
+    def test_preserves_offset_suffix(self) -> None:
+        assert pad_datetime_str("2024-05+02:00") == "2024-05-01T00:00:00+02:00"
+
+
+class TestPadDatetimeStrRoundUp:
+    """round_up=True fills to the *end* of the given granularity, for use
+    as a --to bound (e.g. --to 2026 should cover all of 2026)."""
+
+    def test_year_only(self) -> None:
+        assert pad_datetime_str("2024", round_up=True) == "2024-12-31T23:59:59"
+
+    def test_year_month_uses_calendar_month_length(self) -> None:
+        assert pad_datetime_str("2024-02", round_up=True) == "2024-02-29T23:59:59"
+        assert pad_datetime_str("2023-02", round_up=True) == "2023-02-28T23:59:59"
+        assert pad_datetime_str("2024-04", round_up=True) == "2024-04-30T23:59:59"
+
+    def test_full_date_rounds_up_to_end_of_day(self) -> None:
+        assert pad_datetime_str("2024-05-17", round_up=True) == "2024-05-17T23:59:59"
+
+    def test_date_with_hour_rounds_up_remaining_time(self) -> None:
+        assert pad_datetime_str("2024-05-17T12", round_up=True) == (
+            "2024-05-17T12:59:59"
+        )
+
+    def test_date_with_hour_minute_rounds_up_seconds(self) -> None:
+        assert pad_datetime_str("2024-05-17T12:30", round_up=True) == (
+            "2024-05-17T12:30:59"
+        )
+
+    def test_full_datetime_unchanged(self) -> None:
+        assert (
+            pad_datetime_str("2024-05-17T12:30:45", round_up=True)
+            == "2024-05-17T12:30:45"
+        )
+
+    def test_preserves_z_suffix(self) -> None:
+        assert pad_datetime_str("2024Z", round_up=True) == "2024-12-31T23:59:59Z"
+
+
+# ===================================================================
+# parse_time_bound
+# ===================================================================
+
+
+class TestParseTimeBound:
+    NOW = datetime(2024, 7, 17, 14, 35, 22, tzinfo=timezone.utc)
+
+    def test_now_keyword(self) -> None:
+        assert parse_time_bound("now", now=self.NOW, tz=timezone.utc) == self.NOW
+
+    def test_relative_period(self) -> None:
+        result = parse_time_bound("7d", now=self.NOW, tz=timezone.utc)
+        assert result == self.NOW - timedelta(days=7)
+
+    def test_rejects_max(self) -> None:
+        with pytest.raises(ValueError, match="cannot be 'max' or 'auto'"):
+            parse_time_bound("max", now=self.NOW, tz=timezone.utc)
+
+    def test_partial_iso_date_is_padded(self) -> None:
+        result = parse_time_bound("2024-05", now=self.NOW, tz=timezone.utc)
+        assert result == datetime(2024, 5, 1, tzinfo=timezone.utc)
+
+    def test_full_iso_datetime(self) -> None:
+        result = parse_time_bound("2024-05-17T12:30:00Z", now=self.NOW, tz=timezone.utc)
+        assert result == datetime(2024, 5, 17, 12, 30, tzinfo=timezone.utc)
+
+    def test_naive_value_uses_given_tz(self) -> None:
+        result = parse_time_bound("2024-05-17", now=self.NOW, tz=None)
+        assert result == datetime(2024, 5, 17).astimezone(timezone.utc)
+
+    def test_invalid_value_raises(self) -> None:
+        with pytest.raises(ValueError, match="ISO-8601"):
+            parse_time_bound("not-a-date", now=self.NOW, tz=timezone.utc)
+
+    def test_round_up_year_only_covers_end_of_year(self) -> None:
+        """Regression test: `--to 2026` must cover all of 2026, not just its
+        first instant, or a security that only trades in 2026 gets filtered
+        out of a `--from 2025 --to 2026` window entirely."""
+        result = parse_time_bound("2026", now=self.NOW, tz=timezone.utc, round_up=True)
+        assert result == datetime(2026, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+
+    def test_round_up_default_is_false(self) -> None:
+        result = parse_time_bound("2026", now=self.NOW, tz=timezone.utc)
+        assert result == datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
 # ===================================================================
