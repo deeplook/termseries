@@ -803,6 +803,65 @@ class TestHassCommand:
         detect_mock.assert_called_once_with("sensor.temperature")
         assert run_tui.call_args.kwargs["value_unit"] == "°C"
 
+    def test_hass_last_max_anchors_xlim_to_now(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Like csv, hass's chart x-axis should reach "now" for --last max
+        (not just tightly fit the returned data), so a sensor that stopped
+        reporting shows up as a visible trailing gap instead of being
+        silently rescaled away."""
+        monkeypatch.chdir(tmp_path)
+        data = {
+            "Living Room": [
+                (datetime(2024, 1, 1, tzinfo=timezone.utc), 20.0),
+                (datetime(2024, 1, 2, tzinfo=timezone.utc), 21.0),
+            ]
+        }
+        captured: dict[str, object] = {}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["xlim"] = kwargs["xlim"]
+            return _FAKE_PNG
+
+        with (
+            patch("termseries.cli.fetch_hass_series", return_value=data),
+            patch("termseries.cli._detect_unit", return_value="°C"),
+            patch("termseries.cli._render_png", side_effect=render),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(app, ["hass", "sensor.temperature", "--last", "max"])
+
+        assert result.exit_code == 0
+        xlim = captured["xlim"]
+        assert xlim is not None
+        start, end = xlim
+        assert start == datetime(2024, 1, 1, tzinfo=timezone.utc)
+        assert end > datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    def test_hass_last_auto_leaves_xlim_unset(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--last auto should tightly fit the data with no forced "now" edge."""
+        monkeypatch.chdir(tmp_path)
+        captured: dict[str, object] = {}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["xlim"] = kwargs["xlim"]
+            return _FAKE_PNG
+
+        with (
+            patch("termseries.cli.fetch_hass_series", return_value=_FAKE_DATA),
+            patch("termseries.cli._detect_unit", return_value="°C"),
+            patch("termseries.cli._render_png", side_effect=render),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(
+                app, ["hass", "sensor.temperature", "--last", "auto"]
+            )
+
+        assert result.exit_code == 0
+        assert captured["xlim"] is None
+
 
 # ---------------------------------------------------------------------------
 # error propagation and interactive mode (shared across data commands)
