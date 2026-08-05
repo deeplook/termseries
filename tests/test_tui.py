@@ -485,6 +485,7 @@ class TestFromToSelect:
                 pilot.app.screen.query_one("#to-input", Input).focus()
                 await pilot.press("enter")
                 await pilot.pause()
+                await pilot.pause()
                 assert pilot.app.is_running
                 assert len(pilot.app.screen_stack) == 1
                 assert pilot.app.query(Select)[0].value == "1mo"
