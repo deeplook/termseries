@@ -29,6 +29,7 @@ or saves to file, with an optional interactive Textual TUI.
 - Absolute values (default), indexed to 100%, logarithmic scale
 - Drawdown from running peak, interval-aware returns (label adapts to interval), and relative price ratio
 - Cumulative running total and point-to-point delta
+- Seasonal mode (`--mode seasonal`) wraps a multi-cycle series into overlaid per-cycle lines (e.g. one line per year) via `--cycle year|quarter|<duration>` — see [Seasonal Mode](#seasonal-mode)
 - Rolling windows via `--last` and fixed bounds via `--from`/`--to` across all subcommands
 - Calendar-anchored to-date periods: `ytd`, `mtd`, `wtd`, `dtd`, `htd`
 
@@ -41,6 +42,8 @@ or saves to file, with an optional interactive Textual TUI.
 
 ### Interactive TUI
 - Full-screen Textual TUI with dropdowns for period, aspect ratio, mode, and color cycle; "custom…" option in the Period menu for arbitrary values, and "from-to…" for an explicit date range (partial dates like `2024-05` are zero-padded to a full timestamp, rounding From down to the start and To up to the end, same as the CLI's `--from`/`--to`)
+- Launching with `-i` and `--from`/`--to` seeds that range as its own pre-selected Period entry instead of rejecting it
+- `--mode seasonal` works in the TUI too, re-wrapping data on every redraw
 - Live ticker/entity/file input with immediate re-render on submit
 - Debounced chart re-render on terminal resize using cached data
 - Auto-reload at a configurable interval (`--reload N`) or toggled with Ctrl+R
@@ -51,6 +54,7 @@ or saves to file, with an optional interactive Textual TUI.
 - Seven built-in color cycles (tab10, Set1, Set2, Dark2, Accent, Pastel1, tab20)
 - Layer custom `.mplstyle` overrides on top of the built-in dark/light themes
 - Consistent font sizes across terminal widths in TUI mode
+- Custom chart title (`--title`) and toggleable legend (`--legend`/`--no-legend`)
 
 ### Clipboard & Output
 - Copy rendered plot to system clipboard (`-c` or Ctrl+Y in TUI)
@@ -110,6 +114,18 @@ termseries --mode cumulative csv sensor.csv --last 30d
 
 # Point-to-point delta
 termseries --mode delta yahoo TSLA --last 1mo
+
+# Seasonal: overlay each year as its own line
+termseries --mode seasonal yahoo TSLA --from 2022
+
+# Seasonal: overlay each quarter (calendar-aligned, day-of-quarter x-axis)
+termseries --mode seasonal --cycle quarter yahoo TSLA --last 2y
+
+# Seasonal: overlay each week (Monday-Sunday x-axis)
+termseries --mode seasonal --cycle 1w yahoo TSLA --last 6mo
+
+# Custom title, no legend
+termseries --title "TSLA vs AAPL" --no-legend yahoo TSLA AAPL --last 1y
 
 # Show gaps in data (break lines where data is missing)
 termseries --gaps show hass sensor.living_room_temperature --last 7d
@@ -253,7 +269,10 @@ heart-rate exports do not need to fit in memory.
 | Option | Description |
 |---|---|
 | `--ratio W:H` | Figure aspect ratio (default: 4:1) |
-| `--mode` | Chart mode: absolute, indexed, log, drawdown, returns, relative, cumulative, delta |
+| `--mode` | Chart mode: absolute, indexed, log, drawdown, returns, relative, cumulative, delta, seasonal |
+| `--cycle` | Seasonal cycle length: `year`, `quarter`, or a duration (e.g. `1w`, `90d`) — only valid with `--mode seasonal`, defaults to `year` (see [Seasonal Mode](#seasonal-mode)) |
+| `--title` | Custom chart title (default: auto-generated from mode/period/series) |
+| `--legend` / `--no-legend` | Show or hide the series legend (default: shown) |
 | `--tz TZ` | Timezone for x-axis: `UTC` (default), `local`, or IANA name (e.g. `Europe/Berlin`) |
 | `--colors` | Matplotlib color cycle: tab10, Set1, Set2, Dark2, Accent, Pastel1, tab20 |
 | `--gaps` | Gap handling: `connect` (default), `show` (break lines at gaps), or duration threshold (e.g. `1h`) |
@@ -319,6 +338,49 @@ timezone set by `--tz` (default UTC) — e.g. `--tz local --last dtd` means
 
 For Yahoo, non-native periods (e.g. `14d`, `2w`) are handled automatically by
 overfetching the next-larger native range and trimming client-side.
+
+## Seasonal Mode
+
+`--mode seasonal` wraps a multi-cycle series into overlaid per-cycle lines —
+e.g. one line per year, so you can compare the same time of year across
+multiple years at a glance. Use `--cycle` to pick the cycle length:
+
+```bash
+# One line per calendar year (default cycle)
+termseries --mode seasonal yahoo TSLA --from 2022
+
+# One line per calendar quarter (Q1/Q2/Q3/Q4 all overlay onto the same
+# Jan-Mar-shaped window, so the x-axis shows a single quarter's width)
+termseries --mode seasonal --cycle quarter yahoo TSLA --last 2y
+
+# One line per calendar week, Monday-aligned
+termseries --mode seasonal --cycle 1w yahoo TSLA --last 6mo
+
+# Arbitrary duration cycles (e.g. 90-day chunks)
+termseries --mode seasonal --cycle 90d yahoo TSLA --last 1y
+```
+
+Each output series is labeled with its cycle, e.g. `TSLA (2024)`,
+`TSLA (2024 Q1)`, `TSLA (2024-W03)`. The x-axis label and tick formatting
+adapt to the cycle:
+
+| `--cycle` | X-axis label | Tick format |
+|---|---|---|
+| `year` (default) | `Month of year` | Month names (`Jan`, `Feb`, …), centered mid-month |
+| `quarter` | `Day of quarter` | Day offset within the quarter (`Day 1`…`Day 92`) |
+| a 7-day duration (`1w`/`7d`) | `Day of week` | Weekday names, Monday-aligned, centered on each day |
+| any other duration | `Day of chunk` | Day offset within the chunk |
+
+The timezone is only shown in the x-axis label when it can actually affect
+what's displayed (`quarter` and week cycles, which are day-or-finer
+calendar-aligned); it's omitted for `year` (month-level display) and other
+duration cycles (elapsed-time based, timezone-invariant).
+
+If `--cycle` is as long as or longer than the available data, only one
+chunk is produced and a warning is printed (CLI) or shown as a notification
+(TUI) instead of failing. `--mode seasonal` works with `--interactive` (`-i`)
+too, wrapping freshly fetched data on every redraw — the cycle length comes
+from `--cycle` at launch (no in-TUI cycle selector yet).
 
 ### Yahoo-specific Options
 
