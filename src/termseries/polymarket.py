@@ -16,7 +16,7 @@ from termseries.types import TimeSeries
 
 _CLOB_URL = "https://clob.polymarket.com"
 _GAMMA_URL = "https://gamma-api.polymarket.com"
-_HEADERS = {"User-Agent": "termseries/0.2.0"}
+_HEADERS = {"User-Agent": "termseries/0.3.0"}
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _SEARCH_STOPWORDS = {
     "will",

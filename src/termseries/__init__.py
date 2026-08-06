@@ -6,7 +6,7 @@ Supports both a one-shot CLI mode and an interactive Textual TUI.  See
 
 from __future__ import annotations
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from termseries.cli import app, csv_cmd, demo, hass, main
 from termseries.cli import polymarket as polymarket_cmd

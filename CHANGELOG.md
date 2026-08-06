@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-06
+
 ### Added
 - `--mode seasonal` wraps a multi-cycle series into overlaid per-cycle lines (e.g. one line per year), with `--cycle year|quarter|<duration>` (default `year`) controlling the cycle length. Quarters and week-length (`1w`/`7d`) cycles are calendar-aligned (Monday-start for weeks); the x-axis label, tick format, and whether the timezone is shown all adapt to the chosen cycle. Works with `--interactive` (`-i`) too
 - `--title` sets a custom chart title, overriding the auto-generated one
