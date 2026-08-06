@@ -254,8 +254,14 @@ def _resolve_time_range(
         return resolved_last, resolved_last, None, None
     now = datetime.now(timezone.utc)
     start = _parse_time_bound(from_, now=now, tz=tz) if from_ else None
-    end = _parse_time_bound(to, now=now, tz=tz, round_up=True) if to else now
-    if start is not None and end is not None and start > end:
+    # An omitted --to stays None (open-ended, "up to now") rather than being
+    # frozen to *now* here -- _run_source's own filtering already treats a
+    # None upper bound as "no cap", and the interactive TUI's --from/--to
+    # mechanism relies on None meaning "recompute up to now on every fetch"
+    # rather than a stale timestamp from whenever the CLI was invoked.
+    end = _parse_time_bound(to, now=now, tz=tz, round_up=True) if to else None
+    effective_end = end if end is not None else now
+    if start is not None and start > effective_end:
         raise typer.BadParameter("--from must not be later than --to.")
     label = f"{from_ or 'start'}..{to or 'now'}"
     # Source APIs accept rolling-period tokens; fetch a range that covers
@@ -268,8 +274,8 @@ def _resolve_time_range(
     # anchored to an explicit past --to can't reuse this trick (Yahoo's
     # range parameter always means "ending today"), so it still needs the
     # full "max" history to locate an arbitrary historical window.
-    if start is not None and end >= now:
-        span_days = max((min(end, now) - start).days + 2, 1)
+    if start is not None and effective_end >= now:
+        span_days = max((min(effective_end, now) - start).days + 2, 1)
         fetch_period = f"{span_days}d"
     else:
         fetch_period = "max"
