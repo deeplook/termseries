@@ -17,6 +17,7 @@ class Mode(str, Enum):
     relative = "relative"
     cumulative = "cumulative"
     delta = "delta"
+    seasonal = "seasonal"
 
 
 class ColorCycle(str, Enum):

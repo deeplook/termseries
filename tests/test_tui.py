@@ -7,7 +7,7 @@ No real terminal, PTY, or network I/O is required.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from typing import Any
 from unittest.mock import patch
@@ -503,6 +503,128 @@ class TestFromToSelect:
                 assert pilot.app.query(Select)[0].value == "1mo"
 
 
+class TestInitialRange:
+    """--from/--to at launch (-i) is seeded as a Period entry, not rejected."""
+
+    async def test_initial_range_preselected_and_filters_data(self) -> None:
+        data = {
+            "TSLA": [
+                (datetime(2024, 1, 1, tzinfo=timezone.utc), 1.0),
+                (datetime(2024, 5, 15, tzinfo=timezone.utc), 2.0),
+                (datetime(2024, 12, 1, tzinfo=timezone.utc), 3.0),
+            ]
+        }
+        captured: dict[str, object] = {}
+
+        def fetch(cols: list[str], period: str) -> dict:  # type: ignore[type-arg]
+            return {c: list(data["TSLA"]) for c in cols}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["series"] = series
+            captured["xlim"] = kwargs["xlim"]
+            return _SMALL_PNG
+
+        with patch("termseries.tui._render_png", side_effect=render):
+            async with _make_app(
+                fetch_fn=fetch,
+                initial_range=(
+                    datetime(2024, 5, 1, tzinfo=timezone.utc),
+                    datetime(2024, 6, 30, 23, 59, 59, tzinfo=timezone.utc),
+                ),
+                initial_range_label="2024-05..2024-06",
+            ).run_test() as pilot:
+                await pilot.pause()
+                option_values = {v for _, v in pilot.app.query(Select)[0]._options}
+                selected = pilot.app.query(Select)[0].value
+
+        assert selected == "2024-05..2024-06"
+        assert "2024-05..2024-06" in option_values
+        assert captured["series"] == {"TSLA": [data["TSLA"][1]]}
+        assert captured["xlim"] == (
+            datetime(2024, 5, 1, tzinfo=timezone.utc),
+            datetime(2024, 6, 30, 23, 59, 59, tzinfo=timezone.utc),
+        )
+
+    async def test_open_ended_initial_range_fetches_sized_period_not_max(self) -> None:
+        """Regression test: initial_range=(start, None) (open-ended --from,
+        no --to) must make callback() fetch a properly sized rolling
+        duration, not period="max" -- Yahoo silently coarsens interval=1d
+        bars for range=max on long-lived tickers, even for a narrow window."""
+        fetched_periods: list[str] = []
+
+        def fetch(cols: list[str], period: str) -> dict:  # type: ignore[type-arg]
+            fetched_periods.append(period)
+            return {c: make_series() for c in cols}
+
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app(
+                fetch_fn=fetch,
+                initial_range=(datetime(2022, 1, 1, tzinfo=timezone.utc), None),
+                initial_range_label="2022-01-01..now",
+            ).run_test() as pilot:
+                await pilot.pause()
+
+        assert fetched_periods
+        assert fetched_periods[0] != "max"
+        assert fetched_periods[0].endswith("d")
+
+
+class TestTitleOption:
+    async def test_custom_title_passed_to_render(self) -> None:
+        captured: dict[str, object] = {}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["title"] = kwargs.get("title")
+            return _SMALL_PNG
+
+        with patch("termseries.tui._render_png", side_effect=render):
+            async with _make_app(title="Custom Title").run_test() as pilot:
+                await pilot.pause()
+
+        assert captured["title"] == "Custom Title"
+
+    async def test_no_title_passes_none(self) -> None:
+        captured: dict[str, object] = {"title": "sentinel"}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["title"] = kwargs.get("title")
+            return _SMALL_PNG
+
+        with patch("termseries.tui._render_png", side_effect=render):
+            async with _make_app().run_test() as pilot:
+                await pilot.pause()
+
+        assert captured["title"] is None
+
+
+class TestLegendOption:
+    async def test_default_shows_legend(self) -> None:
+        captured: dict[str, object] = {}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["show_legend"] = kwargs.get("show_legend")
+            return _SMALL_PNG
+
+        with patch("termseries.tui._render_png", side_effect=render):
+            async with _make_app().run_test() as pilot:
+                await pilot.pause()
+
+        assert captured["show_legend"] is True
+
+    async def test_legend_false_disables_legend(self) -> None:
+        captured: dict[str, object] = {}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["show_legend"] = kwargs.get("show_legend")
+            return _SMALL_PNG
+
+        with patch("termseries.tui._render_png", side_effect=render):
+            async with _make_app(legend=False).run_test() as pilot:
+                await pilot.pause()
+
+        assert captured["show_legend"] is False
+
+
 class TestErrorRecovery:
     async def test_error_from_bad_ticker_does_not_swallow_next_period_change(
         self,
@@ -549,3 +671,84 @@ class TestResize:
                 if pilot.app._last_data is not None:
                     pilot.app.on_resize(None)  # event fields are unused
                     assert pilot.app._resize_timer is not None
+
+
+# ---------------------------------------------------------------------------
+# Seasonal mode
+# ---------------------------------------------------------------------------
+
+
+def _multi_year_series() -> list[tuple[datetime, float]]:
+    start = datetime(2022, 1, 1, tzinfo=timezone.utc)
+    return [(start + timedelta(days=i), 100.0 + i) for i in range(3 * 365)]
+
+
+class TestSeasonalMode:
+    async def test_seasonal_mode_wraps_data_and_passes_cycle(self) -> None:
+        """--mode seasonal reshapes the series dict before rendering and
+        threads --cycle through to _render_png, without a --cycle widget."""
+        captured: dict[str, object] = {}
+
+        def fetch(cols: list[str], period: str) -> dict:  # type: ignore[type-arg]
+            return {c: _multi_year_series() for c in cols}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["series"] = series
+            captured["cycle"] = kwargs.get("cycle")
+            captured["mode"] = kwargs.get("mode")
+            return _SMALL_PNG
+
+        with patch("termseries.tui._render_png", side_effect=render):
+            async with _make_app(
+                fetch_fn=fetch, mode="seasonal", cycle="year"
+            ).run_test() as pilot:
+                await pilot.pause()
+
+        assert captured["mode"] == "seasonal"
+        assert captured["cycle"] == "year"
+        series = captured["series"]
+        assert isinstance(series, dict)
+        assert set(series.keys()) == {"TSLA (2022)", "TSLA (2023)", "TSLA (2024)"}
+
+    async def test_seasonal_mode_defaults_cycle_when_none_given(self) -> None:
+        """No --cycle menu entry exists yet; omitting it still works and
+        falls back to yearly wrapping."""
+        captured: dict[str, object] = {}
+
+        def fetch(cols: list[str], period: str) -> dict:  # type: ignore[type-arg]
+            return {c: _multi_year_series() for c in cols}
+
+        def render(series: object, *args: object, **kwargs: object) -> bytes:
+            captured["series"] = series
+            return _SMALL_PNG
+
+        with patch("termseries.tui._render_png", side_effect=render):
+            async with _make_app(
+                fetch_fn=fetch, mode="seasonal", cycle=None
+            ).run_test() as pilot:
+                await pilot.pause()
+
+        series = captured["series"]
+        assert isinstance(series, dict)
+        assert set(series.keys()) == {"TSLA (2022)", "TSLA (2023)", "TSLA (2024)"}
+
+    async def test_seasonal_mode_short_span_warns(self) -> None:
+        """A cycle as long as the whole data span notifies rather than
+        crashing (mirrors the one-shot CLI's stderr warning)."""
+
+        def fetch(cols: list[str], period: str) -> dict:  # type: ignore[type-arg]
+            return {c: make_series() for c in cols}
+
+        notifications: list[str] = []
+
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app(
+                fetch_fn=fetch, mode="seasonal", cycle="year"
+            ).run_test() as pilot:
+                await pilot.pause()
+                pilot.app.notify = lambda msg, **kw: notifications.append(msg)  # type: ignore[method-assign]
+                pilot.app.query_one("#tickers", Input).focus()
+                await pilot.press("enter")
+                await pilot.pause()
+
+        assert any("only one chunk" in n for n in notifications)

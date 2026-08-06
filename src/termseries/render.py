@@ -21,8 +21,10 @@ matplotlib.use(
 import matplotlib.dates as mdates  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 from cycler import cycler  # noqa: E402
+from matplotlib.ticker import FuncFormatter  # noqa: E402
 
 from termseries.period import resolve_tz
+from termseries.seasonal import SECONDS_PER_WEEK, WEEKDAY_NAMES, parse_cycle
 from termseries.terminal import (
     _copy_to_clipboard,
     _detect_dark_terminal,
@@ -61,6 +63,30 @@ def _calendar_divider_locator(
     if span <= timedelta(days=2190):
         return mdates.MonthLocator(interval=3, tz=tz)  # type: ignore[no-untyped-call]
     return mdates.YearLocator(tz=tz)  # type: ignore[no-untyped-call]
+
+
+def _xtick_labels_fit_horizontally(fig: Any, ax: Any) -> bool:
+    """Whether the current x tick labels can sit horizontally without overlap.
+
+    Draws the canvas once (at the default rotation/alignment) to measure
+    each label's actual rendered width, then checks neighboring labels for
+    overlap. Short label sets (e.g. weekday names) usually fit fine
+    unrotated; long or numerous labels (e.g. "2024-05-01") usually don't --
+    this replaces a fixed always-rotate rule with a per-chart check.
+    """
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    labels = [label for label in ax.get_xticklabels() if label.get_text()]
+    if len(labels) < 2:
+        return True
+    boxes = sorted(
+        (label.get_window_extent(renderer=renderer) for label in labels),
+        key=lambda box: box.x0,
+    )
+    padding_px = 4  # breathing room between adjacent labels
+    return all(
+        boxes[i].x1 + padding_px <= boxes[i + 1].x0 for i in range(len(boxes) - 1)
+    )
 
 
 def _display_series_name(name: str) -> str:
@@ -210,6 +236,10 @@ def _render_png(
     xlim: tuple[datetime, datetime] | None = None,
     theme: str = "auto",
     save_dpi: float | None = None,
+    cycle: str | None = None,
+    cycle_count: int | None = None,
+    title: str | None = None,
+    show_legend: bool = True,
 ) -> bytes:
     """Render a time-series chart and return PNG bytes.
 
@@ -260,8 +290,8 @@ def _render_png(
         ratio_w, ratio_h = ratio
         width_in = 12.0
         height_in = width_in * (ratio_h / ratio_w)
-    crowded_legend = legend_placement == "outside"
-    if legend_placement == "outside":
+    crowded_legend = show_legend and legend_placement == "outside"
+    if show_legend and legend_placement == "outside":
         legend_cols = 2
         height_in += 0.45 * legend_rows + 0.5
     if color_cycle:
@@ -350,6 +380,63 @@ def _render_png(
         ax.xaxis.set_minor_locator(
             _calendar_divider_locator(visible_start, visible_end, target_tz)
         )
+        if mode == "seasonal":
+            cycle_spec = parse_cycle(cycle) if cycle else None
+            if cycle_spec is not None and cycle_spec.kind == "year":
+                # Points are projected onto a shared synthetic reference year
+                # so cycles overlay; showing that fake year on tick labels
+                # (the default formatter's "%Y-%m" etc.) would be
+                # misleading, so drop it. Month boundaries are already
+                # marked by the minor gridlines (set above); tick on the
+                # 15th of every month instead so the "Jan"/"Feb"/... label
+                # sits centered under that month's points rather than at
+                # their left edge, and every month gets its own label
+                # regardless of how many ticks the default locator would
+                # otherwise have picked for this span.
+                ax.xaxis.set_major_locator(
+                    mdates.DayLocator(bymonthday=15, tz=target_tz)  # type: ignore[no-untyped-call]
+                )
+                ax.xaxis.set_major_formatter(
+                    mdates.DateFormatter("%b", tz=target_tz)  # type: ignore[no-untyped-call]
+                )
+                ax.tick_params(axis="x", which="major", length=0)
+            elif (
+                cycle_spec is not None
+                and cycle_spec.duration_seconds == SECONDS_PER_WEEK
+            ):
+                # Weeks are calendar-aligned to Monday (see wrap_series), so
+                # the day-within-cycle offset lines up with the real weekday.
+                def _weekday_of_cycle(x: float, _pos: object = None) -> str:
+                    dt = mdates.num2date(x, tz=target_tz)  # type: ignore[no-untyped-call]
+                    day_index: int = (dt.timetuple().tm_yday - 1) % 7
+                    return WEEKDAY_NAMES[day_index]
+
+                # A 5-7 day span is narrow enough that the default
+                # AutoDateLocator picks sub-day tick spacing, which would
+                # duplicate the same weekday label on two ticks -- pin one
+                # tick per calendar day instead, centered at noon so the
+                # label sits under the middle of that day's points rather
+                # than at their left edge (midnight).
+                ax.xaxis.set_major_locator(
+                    mdates.HourLocator(byhour=[12], tz=target_tz)  # type: ignore[no-untyped-call]
+                )
+                ax.xaxis.set_major_formatter(FuncFormatter(_weekday_of_cycle))
+                # The day boundaries are already marked by the minor
+                # gridlines (set above); a tick mark at noon too would be a
+                # redundant second marker floating mid-day, so keep the
+                # label but drop its tick line.
+                ax.tick_params(axis="x", which="major", length=0)
+            else:
+                # For "quarter"/duration cycles every chunk is remapped onto
+                # the *same* reference window regardless of which real
+                # month it came from (e.g. Q2's April lands where Q1's
+                # January does), so a month/day label would misreport the
+                # real calendar date. Label by day-within-cycle instead.
+                def _day_of_cycle(x: float, _pos: object = None) -> str:
+                    dt = mdates.num2date(x, tz=target_tz)  # type: ignore[no-untyped-call]
+                    return f"Day {dt.timetuple().tm_yday}"
+
+                ax.xaxis.set_major_formatter(FuncFormatter(_day_of_cycle))
         ax.set_axisbelow(True)
         ax.grid(
             True,
@@ -370,18 +457,50 @@ def _render_png(
             "relative": f"{names[0]}/{names[1]}" if mode == "relative" else "",
             "cumulative": "Cumulative",
             "delta": f"{interval_label} Delta",
+            "seasonal": "Seasonal",
         }
-        prefix = title_labels.get(mode, "")
-        if len(names) <= 3 and all(len(display_names[name]) <= 24 for name in names):
-            names_str = ", ".join(display_names[name] for name in names)
+        if title is not None:
+            ax.set_title(title)
         else:
-            names_str = f"{len(names)} series"
-        if prefix:
-            ax.set_title(f"{prefix} ({period_label}): {names_str}")
-        else:
-            ax.set_title(f"{names_str} ({period_label})")
+            prefix = title_labels.get(mode, "")
+            if len(names) <= 3 and all(
+                len(display_names[name]) <= 24 for name in names
+            ):
+                names_str = ", ".join(display_names[name] for name in names)
+            else:
+                names_str = f"{len(names)} series"
+            if prefix:
+                ax.set_title(f"{prefix} ({period_label}): {names_str}")
+            else:
+                ax.set_title(f"{names_str} ({period_label})")
         tz_label = "UTC" if tz == "UTC" else "local" if tz == "local" else tz
-        ax.set_xlabel(f"Date ({tz_label})")
+        if mode == "seasonal":
+            xlabel_spec = parse_cycle(cycle) if cycle else None
+            # Only mention the timezone when it can actually change what's
+            # displayed: day-or-finer calendar-aligned boundaries (quarter,
+            # week) are tz-sensitive, but the year axis only shows month
+            # names (a tz shift near midnight is invisible at that
+            # resolution) and duration/chunk cycles are anchored to elapsed
+            # time from the first point, so tz has no effect on them at all.
+            show_tz = False
+            if xlabel_spec is None:
+                position, cycle_unit = "Day of cycle", "cycles"
+                show_tz = True
+            elif xlabel_spec.kind == "year":
+                position, cycle_unit = "Month of year", "years"
+            elif xlabel_spec.kind == "quarter":
+                position, cycle_unit = "Day of quarter", "quarters"
+                show_tz = True
+            elif xlabel_spec.duration_seconds == SECONDS_PER_WEEK:
+                position, cycle_unit = "Day of week", "weeks"
+                show_tz = True
+            else:
+                position, cycle_unit = "Day of chunk", "chunks"
+            count_str = f"{cycle_count} " if cycle_count is not None else ""
+            tz_part = f"{tz_label}, " if show_tz else ""
+            ax.set_xlabel(f"{position} ({tz_part}{count_str}{cycle_unit} overlaid)")
+        else:
+            ax.set_xlabel(f"Date ({tz_label})")
         ylabel = {
             "absolute": f"Close ({value_unit})" if is_stock else value_unit,
             "indexed": "% of start",
@@ -391,44 +510,47 @@ def _render_png(
             "relative": f"{names[0]}/{names[1]} ratio" if mode == "relative" else "",
             "cumulative": f"Cumulative ({value_unit})",
             "delta": f"{interval_label} change ({value_unit})",
+            "seasonal": f"Close ({value_unit})" if is_stock else value_unit,
         }
         ax.set_ylabel(ylabel.get(mode, value_unit))
         legend: Any = None
-        if legend_placement == "outside":
-            legend = ax.legend(
-                ncols=legend_cols,
-                loc="upper center",
-                bbox_to_anchor=(0.5, -0.32),
-                fontsize=max(7, 10 - legend_rows // 2),
-                frameon=True,
-            )
-            fig.subplots_adjust(bottom=min(0.52, 0.16 + 0.08 * legend_rows))
-        elif legend_placement == "inside-top-left":
-            ax.legend(
-                ncols=legend_cols,
-                loc="upper left",
-                bbox_to_anchor=(0.02, 0.98),
-                fontsize=9,
-                frameon=True,
-                borderaxespad=0.0,
-            )
-        elif legend_placement == "inside-left":
-            ax.legend(
-                ncols=legend_cols,
-                loc="center left",
-                bbox_to_anchor=(0.02, 0.5),
-                fontsize=max(8, 10 - max(0, legend_rows - 4)),
-                frameon=True,
-                borderaxespad=0.0,
-            )
-        else:
-            ax.legend(
-                ncols=legend_cols,
-                loc="best",
-                fontsize=max(8, 10 - max(0, legend_rows - 1)),
-                frameon=True,
-            )
-        fig.autofmt_xdate()
+        if show_legend:
+            if legend_placement == "outside":
+                legend = ax.legend(
+                    ncols=legend_cols,
+                    loc="upper center",
+                    bbox_to_anchor=(0.5, -0.32),
+                    fontsize=max(7, 10 - legend_rows // 2),
+                    frameon=True,
+                )
+                fig.subplots_adjust(bottom=min(0.52, 0.16 + 0.08 * legend_rows))
+            elif legend_placement == "inside-top-left":
+                ax.legend(
+                    ncols=legend_cols,
+                    loc="upper left",
+                    bbox_to_anchor=(0.02, 0.98),
+                    fontsize=9,
+                    frameon=True,
+                    borderaxespad=0.0,
+                )
+            elif legend_placement == "inside-left":
+                ax.legend(
+                    ncols=legend_cols,
+                    loc="center left",
+                    bbox_to_anchor=(0.02, 0.5),
+                    fontsize=max(8, 10 - max(0, legend_rows - 4)),
+                    frameon=True,
+                    borderaxespad=0.0,
+                )
+            else:
+                ax.legend(
+                    ncols=legend_cols,
+                    loc="best",
+                    fontsize=max(8, 10 - max(0, legend_rows - 1)),
+                    frameon=True,
+                )
+        if not _xtick_labels_fit_horizontally(fig, ax):
+            fig.autofmt_xdate()
 
         buf = BytesIO()
         _save_dpi: float | str

@@ -111,6 +111,105 @@ class TestThemeResolution:
         assert captured.get("theme") == "dark"
 
 
+class TestTitleOption:
+    def test_default_omits_title_kwarg(self) -> None:
+        """No --title given: _render_png isn't passed a title override."""
+        captured: dict[str, object] = {"title": "sentinel"}
+
+        def mock_render(*args: object, **kwargs: object) -> bytes:
+            captured["title"] = kwargs.get("title")
+            return _FAKE_PNG
+
+        with (
+            patch("termseries.cli.fetch_yahoo_series", return_value=_FAKE_DATA),
+            patch("termseries.cli._render_png", mock_render),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(app, ["yahoo", "FAKE"])
+
+        assert result.exit_code == 0
+        assert captured["title"] is None
+
+    def test_custom_title_passed_through(self) -> None:
+        captured: dict[str, object] = {}
+
+        def mock_render(*args: object, **kwargs: object) -> bytes:
+            captured["title"] = kwargs.get("title")
+            return _FAKE_PNG
+
+        with (
+            patch("termseries.cli.fetch_yahoo_series", return_value=_FAKE_DATA),
+            patch("termseries.cli._render_png", mock_render),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(app, ["--title", "My Custom Title", "yahoo", "FAKE"])
+
+        assert result.exit_code == 0
+        assert captured["title"] == "My Custom Title"
+
+    def test_custom_title_forwarded_to_interactive(self) -> None:
+        with (
+            patch("termseries.cli._run_interactive") as run_tui,
+            patch("termseries.cli.fetch_yahoo_series", return_value=_FAKE_DATA),
+        ):
+            result = runner.invoke(
+                app, ["--title", "Custom", "--interactive", "yahoo", "FAKE"]
+            )
+
+        assert result.exit_code == 0
+        run_tui.assert_called_once()
+        assert run_tui.call_args.kwargs["title"] == "Custom"
+
+
+class TestLegendOption:
+    def test_default_shows_legend(self) -> None:
+        captured: dict[str, object] = {"show_legend": "sentinel"}
+
+        def mock_render(*args: object, **kwargs: object) -> bytes:
+            captured["show_legend"] = kwargs.get("show_legend")
+            return _FAKE_PNG
+
+        with (
+            patch("termseries.cli.fetch_yahoo_series", return_value=_FAKE_DATA),
+            patch("termseries.cli._render_png", mock_render),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(app, ["yahoo", "FAKE"])
+
+        assert result.exit_code == 0
+        assert captured["show_legend"] is True
+
+    def test_no_legend_flag_disables_legend(self) -> None:
+        captured: dict[str, object] = {}
+
+        def mock_render(*args: object, **kwargs: object) -> bytes:
+            captured["show_legend"] = kwargs.get("show_legend")
+            return _FAKE_PNG
+
+        with (
+            patch("termseries.cli.fetch_yahoo_series", return_value=_FAKE_DATA),
+            patch("termseries.cli._render_png", mock_render),
+            patch("termseries.cli._output_png"),
+        ):
+            result = runner.invoke(app, ["--no-legend", "yahoo", "FAKE"])
+
+        assert result.exit_code == 0
+        assert captured["show_legend"] is False
+
+    def test_no_legend_forwarded_to_interactive(self) -> None:
+        with (
+            patch("termseries.cli._run_interactive") as run_tui,
+            patch("termseries.cli.fetch_yahoo_series", return_value=_FAKE_DATA),
+        ):
+            result = runner.invoke(
+                app, ["--no-legend", "--interactive", "yahoo", "FAKE"]
+            )
+
+        assert result.exit_code == 0
+        run_tui.assert_called_once()
+        assert run_tui.call_args.kwargs["legend"] is False
+
+
 # ---------------------------------------------------------------------------
 # Helpers shared by output/protocol tests
 # ---------------------------------------------------------------------------
@@ -970,6 +1069,79 @@ class TestDataCommandBehaviors:
         run_tui.assert_called_once()
         # Interactive mode hands off to the TUI rather than the one-shot renderer.
         output.assert_not_called()
+
+    def test_interactive_with_from_to_seeds_initial_range(
+        self,
+        argv: list[str],
+        fetch_target: str,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """--from/--to with -i is forwarded into the TUI as a pre-seeded
+        Period entry instead of being rejected."""
+        monkeypatch.chdir(tmp_path)
+        with (
+            patch("termseries.cli._run_interactive") as run_tui,
+            patch(f"termseries.cli.{fetch_target}", return_value=_FAKE_DATA),
+            patch("termseries.cli._detect_unit", return_value="value"),
+        ):
+            result = runner.invoke(
+                app, ["-i", *argv, "--from", "2024-01-01", "--to", "2024-06-01"]
+            )
+        assert result.exit_code == 0, _plain(result.output)
+        run_tui.assert_called_once()
+        assert (
+            run_tui.call_args.kwargs["initial_range_label"] == "2024-01-01..2024-06-01"
+        )
+        assert run_tui.call_args.kwargs["initial_range"] == (
+            datetime(2024, 1, 1, tzinfo=timezone.utc),
+            datetime(2024, 6, 1, 23, 59, 59, tzinfo=timezone.utc),
+        )
+
+    def test_interactive_with_open_ended_from_keeps_range_end_none(
+        self,
+        argv: list[str],
+        fetch_target: str,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Regression test: an omitted --to must stay None in the range
+        forwarded to the TUI, not get frozen to the CLI-invocation-time
+        "now" -- a frozen end quickly looks "in the past" to the TUI's own
+        live re-fetch check, which then fetches period="max" instead of a
+        properly sized window (and Yahoo silently coarsens interval=1d bars
+        for range=max on long-lived tickers)."""
+        monkeypatch.chdir(tmp_path)
+        with (
+            patch("termseries.cli._run_interactive") as run_tui,
+            patch(f"termseries.cli.{fetch_target}", return_value=_FAKE_DATA),
+            patch("termseries.cli._detect_unit", return_value="value"),
+        ):
+            result = runner.invoke(app, ["-i", *argv, "--from", "2022-01-01"])
+        assert result.exit_code == 0, _plain(result.output)
+        run_tui.assert_called_once()
+        initial_range = run_tui.call_args.kwargs["initial_range"]
+        assert initial_range[0] == datetime(2022, 1, 1, tzinfo=timezone.utc)
+        assert initial_range[1] is None
+
+    def test_interactive_with_first_still_rejected(
+        self,
+        argv: list[str],
+        fetch_target: str,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """--first stays data-anchored (depends on the freshly fetched
+        series' earliest timestamp), which doesn't fit the TUI's live
+        re-fetch model the way a fixed --from/--to range does."""
+        monkeypatch.chdir(tmp_path)
+        with (
+            patch(f"termseries.cli.{fetch_target}", return_value=_FAKE_DATA),
+            patch("termseries.cli._detect_unit", return_value="value"),
+        ):
+            result = runner.invoke(app, ["-i", *argv, "--first", "30d"])
+        assert result.exit_code != 0
+        assert "--first cannot be used with --interactive" in _plain(result.output)
 
 
 class TestDemoCommand:

@@ -31,6 +31,7 @@ from termseries.period import (
 )
 from termseries.polymarket import fetch_polymarket_series
 from termseries.render import _output_png, _render_png
+from termseries.seasonal import count_cycles, parse_cycle, wrap_series
 from termseries.terminal import (
     _VALID_PROTOCOLS,
     _VALID_THEMES,
@@ -97,22 +98,29 @@ def _run_source(
     display_period = period_label or period
 
     if opts["interactive"]:
-        if time_range is not None or first_period is not None:
+        if first_period is not None:
             raise typer.BadParameter(
-                "--first and --from/--to cannot be used with --interactive; "
-                "use --last instead."
+                "--first cannot be used with --interactive; use --last or "
+                "--from/--to instead."
             )
         interactive_kwargs: dict[str, Any] = {}
         if value_unit is not None:
             interactive_kwargs["value_unit"] = value_unit
         if anchor_now:
             interactive_kwargs["anchor_now"] = True
+        if time_range is not None:
+            interactive_kwargs["initial_range"] = time_range
+            interactive_kwargs["initial_range_label"] = display_period
+        if opts["title"] is not None:
+            interactive_kwargs["title"] = opts["title"]
         _run_interactive(
             items,
             period_choices=TUI_PERIOD_CHOICES,
             period=period,
             ratio=opts["ratio"],
             mode=opts["mode"],
+            cycle=opts["cycle"],
+            legend=opts["legend"],
             colors=opts["colors"],
             fetch_fn=fetch_fn,
             style_override=opts["style"],
@@ -154,21 +162,46 @@ def _run_source(
                     f"for: {', '.join(empty)}."
                 )
         data = apply_gaps(data, opts["gaps"])
+        cycle_count = None
+        if opts["mode"] == "seasonal":
+            cycle_count = count_cycles(data, opts["cycle"], tz=resolve_tz(opts["tz"]))
+            wrapped = wrap_series(data, opts["cycle"], tz=resolve_tz(opts["tz"]))
+            if len(wrapped) == len(data):
+                typer.echo(
+                    "Warning: --cycle is as long as or longer than the data "
+                    "span; only one chunk was produced per series.",
+                    err=True,
+                )
+            data = wrapped
         r = opts["ratio"] or (4, 1)
         render_kwargs: dict[str, Any] = {}
         if value_unit is not None:
             render_kwargs["value_unit"] = value_unit
         if interval_label is not None:
             render_kwargs["interval_label"] = interval_label
-        if time_range is not None:
-            range_start, range_end = time_range
+        if opts["title"] is not None:
+            render_kwargs["title"] = opts["title"]
+        render_kwargs["show_legend"] = opts["legend"]
+        # Real-time xlim/time_range bounds don't apply to the synthetic
+        # reference-year axis produced by wrap_series -- compute tight
+        # bounds from the wrapped data itself instead, so the plot isn't
+        # left with matplotlib's default ~5% autoscale margin on each side.
+        if opts["mode"] == "seasonal":
+            render_kwargs["cycle"] = opts["cycle"]
+            render_kwargs["cycle_count"] = cycle_count
             all_ts = [dt for series in data.values() for dt, _ in series]
-            render_kwargs["xlim"] = (
-                range_start or min(all_ts),
-                range_end or max(all_ts),
-            )
-        elif xlim_fn is not None:
-            render_kwargs["xlim"] = xlim_fn(data)
+            if len(all_ts) >= 2:
+                render_kwargs["xlim"] = (min(all_ts), max(all_ts))
+        else:
+            if time_range is not None:
+                range_start, range_end = time_range
+                all_ts = [dt for series in data.values() for dt, _ in series]
+                render_kwargs["xlim"] = (
+                    range_start or min(all_ts),
+                    range_end or max(all_ts),
+                )
+            elif xlim_fn is not None:
+                render_kwargs["xlim"] = xlim_fn(data)
         png = _render_png(
             data,
             r,
@@ -352,6 +385,22 @@ def _validate_gaps(value: str) -> str:
     return value
 
 
+def _validate_cycle(value: str | None) -> str | None:
+    """Typer callback that validates the --cycle option in isolation.
+
+    Cross-validation against --mode (--cycle requires --mode seasonal, and
+    defaults to "year" when omitted under --mode seasonal) happens in
+    ``main()`` once both option values are available.
+    """
+    if value is None:
+        return None
+    try:
+        parse_cycle(value)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    return value
+
+
 def _debug_echo(msg: str) -> None:
     """Print a debug line to stderr when the DEBUG env var is set."""
     import os
@@ -384,6 +433,23 @@ def main(
         str | None, typer.Option(help='Aspect ratio "W:H" or "fit"')
     ] = None,
     mode: Annotated[Mode, typer.Option(help="Chart mode")] = Mode.absolute,
+    cycle: Annotated[
+        str | None,
+        typer.Option(
+            help=(
+                'Seasonal cycle length: "year", "quarter", or a duration '
+                "(e.g. 90d) -- only valid with --mode seasonal"
+            ),
+            callback=_validate_cycle,
+        ),
+    ] = None,
+    title: Annotated[
+        str | None,
+        typer.Option(help="Custom chart title (default: auto-generated)"),
+    ] = None,
+    legend: Annotated[
+        bool, typer.Option("--legend/--no-legend", help="Show the series legend")
+    ] = True,
     colors: Annotated[ColorCycle, typer.Option(help="Color cycle")] = ColorCycle.tab10,
     style: Annotated[
         Path | None,
@@ -445,6 +511,13 @@ def main(
         else _parse_ratio(effective_ratio)
     )
     ctx.obj["mode"] = mode.value
+    if mode == Mode.seasonal and cycle is None:
+        cycle = "year"
+    if cycle is not None and mode != Mode.seasonal:
+        raise typer.BadParameter("--cycle is only valid with --mode seasonal.")
+    ctx.obj["cycle"] = cycle
+    ctx.obj["title"] = title
+    ctx.obj["legend"] = legend
     ctx.obj["colors"] = colors.value
     ctx.obj["style"] = style
     ctx.obj["copy"] = copy
