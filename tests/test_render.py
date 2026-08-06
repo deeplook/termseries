@@ -21,6 +21,7 @@ from termseries.render import (
     _transform_drawdown,
     _transform_indexed,
     _transform_returns,
+    _xtick_labels_fit_horizontally,
 )
 from termseries.terminal import _png_dimensions
 from tests.conftest import make_series
@@ -52,6 +53,38 @@ class TestRenderPng:
             _calendar_divider_locator(start, start + timedelta(days=90), timezone.utc),
             mdates.MonthLocator,
         )
+
+    def test_xtick_labels_fit_horizontally_when_short_and_spaced_out(self) -> None:
+        fig, ax = plt.subplots(figsize=(12, 4))
+        dates = [datetime(2024, 1, d, tzinfo=timezone.utc) for d in range(1, 8)]
+        ax.plot(dates, range(7))
+        ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%a"))
+        try:
+            assert _xtick_labels_fit_horizontally(fig, ax) is True
+        finally:
+            plt.close(fig)
+
+    def test_xtick_labels_dont_fit_when_narrow_and_long(self) -> None:
+        fig, ax = plt.subplots(figsize=(2, 1))
+        dates = [datetime(2024, 1, d, tzinfo=timezone.utc) for d in range(1, 15)]
+        ax.plot(dates, range(14))
+        ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+        try:
+            assert _xtick_labels_fit_horizontally(fig, ax) is False
+        finally:
+            plt.close(fig)
+
+    def test_xtick_labels_fit_with_fewer_than_two_labels(self) -> None:
+        fig, ax = plt.subplots(figsize=(1, 1))
+        ax.plot([1, 2, 3], [1, 2, 3])
+        ax.set_xticks([2])
+        ax.set_xticklabels(["only label"])
+        try:
+            assert _xtick_labels_fit_horizontally(fig, ax) is True
+        finally:
+            plt.close(fig)
 
     def test_display_series_name_truncates_long_label(self) -> None:
         name = "This is a deliberately long display label that should be truncated"
@@ -90,6 +123,38 @@ class TestRenderPng:
         w, h = _png_dimensions(png)
         assert w > 0 and h > 0
         assert w == 2400  # 12in * 200dpi
+
+    def test_custom_title_overrides_auto_generated(self) -> None:
+        series = {"A": make_series()}
+        with patch("matplotlib.axes.Axes.set_title", autospec=True) as mock_set_title:
+            _render_png(series, (4, 1), "7d", title="My Custom Title")
+        mock_set_title.assert_called_once()
+        assert mock_set_title.call_args.args[1] == "My Custom Title"
+
+    def test_no_title_uses_auto_generated(self) -> None:
+        series = {"A": make_series()}
+        with patch("matplotlib.axes.Axes.set_title", autospec=True) as mock_set_title:
+            _render_png(series, (4, 1), "7d")
+        mock_set_title.assert_called_once()
+        assert mock_set_title.call_args.args[1] != "My Custom Title"
+        assert "7d" in mock_set_title.call_args.args[1]
+
+    def test_legend_shown_by_default(self) -> None:
+        series = {"A": make_series(), "B": make_series(base=50)}
+        with patch("matplotlib.axes.Axes.legend", autospec=True) as mock_legend:
+            _render_png(series, (4, 1), "7d")
+        mock_legend.assert_called_once()
+
+    def test_no_legend_skips_legend_call(self) -> None:
+        series = {"A": make_series(), "B": make_series(base=50)}
+        with patch("matplotlib.axes.Axes.legend", autospec=True) as mock_legend:
+            _render_png(series, (4, 1), "7d", show_legend=False)
+        mock_legend.assert_not_called()
+
+    def test_no_legend_still_returns_valid_png(self) -> None:
+        series = {"A": make_series()}
+        png = _render_png(series, (4, 1), "7d", show_legend=False)
+        assert png[:8] == PNG_SIGNATURE
 
     def test_mode_indexed(self) -> None:
         series = {"A": make_series()}

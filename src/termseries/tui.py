@@ -13,6 +13,7 @@ from typing import Any
 from termseries.gaps import apply_gaps
 from termseries.period import parse_period, parse_time_bound, resolve_tz, xlim_now
 from termseries.render import _render_png
+from termseries.seasonal import count_cycles, wrap_series
 from termseries.terminal import (
     _copy_to_clipboard,
     _is_docker,
@@ -31,6 +32,7 @@ def _build_app(
     period: str | None = None,
     ratio: tuple[int, int] | None = None,
     mode: str | None = None,
+    cycle: str | None = None,
     colors: str | None = None,
     fetch_fn: Callable[[list[str], str], dict[str, TimeSeries]],
     value_unit: str = "USD",
@@ -41,6 +43,10 @@ def _build_app(
     anchor_now: bool = False,
     theme: str = "auto",
     gaps: str = "connect",
+    initial_range: tuple[datetime | None, datetime | None] | None = None,
+    initial_range_label: str | None = None,
+    title: str | None = None,
+    legend: bool = True,
 ) -> Any:
     """Build and return the TermSeriesApp without running it.
 
@@ -284,19 +290,33 @@ def _build_app(
             self._explicit_ranges: dict[
                 str, tuple[datetime | None, datetime | None]
             ] = {}
+            if initial_range is not None and initial_range_label is not None:
+                self._explicit_ranges[initial_range_label] = initial_range
 
         def compose(self) -> ComposeResult:
             has_columns = bool(initial_columns)
             with Horizontal(id="menu"):
                 periods = list(period_choices)
-                if period and period not in periods:
+                if period and period not in periods and initial_range_label is None:
                     periods.append(period)
                 options = [(p, p) for p in periods] + [
                     ("custom…", _CUSTOM),
                     ("from-to…", _FROM_TO),
                 ]
+                if initial_range_label is not None:
+                    # --from/--to was passed on launch: seed it as its own
+                    # Period entry (matching the label _resolve_time_range
+                    # built and _explicit_ranges keys above) rather than
+                    # rejecting it outright.
+                    options = [
+                        *options[:-1],
+                        (initial_range_label, initial_range_label),
+                        options[-1],
+                    ]
                 s1: Select[str] = Select(options, prompt="Period", allow_blank=True)
-                if period and period in periods:
+                if initial_range_label is not None:
+                    s1.value = initial_range_label
+                elif period and period in periods:
                     s1.value = period
                 elif has_columns:
                     s1.value = periods[0]
@@ -335,6 +355,7 @@ def _build_app(
                     "relative",
                     "cumulative",
                     "delta",
+                    "seasonal",
                 ]
                 s_mode = Select.from_values(modes, prompt="Mode", allow_blank=True)
                 s_mode.value = mode if mode and mode in modes else "absolute"
@@ -452,8 +473,27 @@ def _build_app(
                     xlim = xlim_now(period, data, tz=resolve_tz(tz))
                 if just_fetched is not None:
                     data = apply_gaps(data, gaps)
+                render_data = data
+                render_cycle_count: int | None = None
+                if mode == "seasonal":
+                    # Real-time xlim (explicit_range/anchor_now, above)
+                    # doesn't apply to the synthetic reference-cycle axis;
+                    # replace it with tight bounds from the wrapped data.
+                    effective_cycle = cycle or "year"
+                    render_cycle_count = count_cycles(
+                        data, effective_cycle, tz=resolve_tz(tz)
+                    )
+                    render_data = wrap_series(data, effective_cycle, tz=resolve_tz(tz))
+                    if len(render_data) == len(data):
+                        self.notify(
+                            "--cycle is as long as or longer than the data "
+                            "span; only one chunk was produced per series.",
+                            severity="warning",
+                        )
+                    all_ts = [dt for series in render_data.values() for dt, _ in series]
+                    xlim = (min(all_ts), max(all_ts)) if len(all_ts) >= 2 else None
                 png_bytes = _render_png(
-                    data,
+                    render_data,
                     ratio_tuple,
                     period,
                     color_cycle=color_cycle,
@@ -465,6 +505,10 @@ def _build_app(
                     xlim=xlim,
                     theme=theme,
                     save_dpi=_save_dpi,
+                    cycle=cycle,
+                    cycle_count=render_cycle_count,
+                    title=title,
+                    show_legend=legend,
                 )
             except (ValueError, RuntimeError) as e:
                 self.notify(str(e), severity="warning")
@@ -775,6 +819,7 @@ def _run_interactive(
     period: str | None = None,
     ratio: tuple[int, int] | None = None,
     mode: str | None = None,
+    cycle: str | None = None,
     colors: str | None = None,
     fetch_fn: Callable[[list[str], str], dict[str, TimeSeries]],
     value_unit: str = "USD",
@@ -785,6 +830,10 @@ def _run_interactive(
     anchor_now: bool = False,
     theme: str = "auto",
     gaps: str = "connect",
+    initial_range: tuple[datetime | None, datetime | None] | None = None,
+    initial_range_label: str | None = None,
+    title: str | None = None,
+    legend: bool = True,
 ) -> None:
     """Launch the Textual-based interactive chart viewer."""
     _build_app(
@@ -793,6 +842,7 @@ def _run_interactive(
         period=period,
         ratio=ratio,
         mode=mode,
+        cycle=cycle,
         colors=colors,
         fetch_fn=fetch_fn,
         value_unit=value_unit,
@@ -803,4 +853,8 @@ def _run_interactive(
         anchor_now=anchor_now,
         theme=theme,
         gaps=gaps,
+        initial_range=initial_range,
+        initial_range_label=initial_range_label,
+        title=title,
+        legend=legend,
     ).run()
