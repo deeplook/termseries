@@ -432,6 +432,7 @@ class TestFromToSelect:
                 pilot.app.screen.query_one("#to-input", Input).focus()
                 await pilot.press("enter")
                 await pilot.pause()
+                await pilot.pause()
                 option_values = {v for _, v in pilot.app.query(Select)[0]._options}
 
         # The Input.Submitted event must not bubble out of the modal and
