@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import math
+import re
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -243,21 +244,26 @@ def _sniff_header_columns(path: str) -> list[str] | None:
     return None
 
 
+_CSV_COLON_RE = re.compile(r"\.csv:", re.IGNORECASE)
+
+
 def _parse_csv_arg(raw: str) -> tuple[str, list[str] | None]:
     """Split a ``path[:col1,col2,...]`` CLI argument into path and columns.
 
-    The colon suffix is only recognised when the part before the *first*
-    colon looks like a ``.csv`` path, so plain paths are never misparsed
-    (e.g. Windows paths like ``C:\\data.csv`` have no ``.csv`` before their
-    colon and pass through untouched). Splitting on the first colon rather
-    than the last also means a column list mistakenly typed with colons
-    instead of commas (``file.csv:a:b:c``) still resolves to the real
-    ``file.csv`` path, so the resulting error names the bad column list
-    instead of claiming the file itself is missing.
+    The colon suffix is only recognised right after a ``.csv`` extension,
+    not just any colon -- a naive "split on the first colon" would misparse
+    a Windows absolute path with a column suffix (e.g.
+    ``C:\\data\\sensors.csv:temp``), since the drive letter's colon comes
+    first and isn't a ``.csv`` boundary. Matching a colon mistakenly typed
+    within the column list itself (``file.csv:a:b:c``) still resolves to
+    the real ``file.csv`` path, so the resulting error names the bad column
+    list instead of claiming the file itself is missing.
     """
-    if ":" in raw:
-        path_part, _, cols_part = raw.partition(":")
-        if path_part.lower().endswith(".csv") and cols_part:
+    match = _CSV_COLON_RE.search(raw)
+    if match is not None:
+        split_at = match.end() - 1  # index of the colon itself
+        path_part, cols_part = raw[:split_at], raw[split_at + 1 :]
+        if cols_part:
             columns = [c.strip() for c in cols_part.split(",") if c.strip()]
             if columns:
                 return path_part, columns

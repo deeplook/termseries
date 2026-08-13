@@ -198,6 +198,23 @@ class TestParseCsvArg:
             ["TESLA:BMW:MERCEDES"],
         )
 
+    def test_windows_absolute_path_with_columns(self) -> None:
+        """Regression test: a naive "split on the first colon" misparses a
+        Windows absolute path with a column suffix, since the drive
+        letter's colon comes first and isn't a .csv boundary -- the whole
+        string (including the column suffix) was wrongly treated as a
+        literal, nonexistent path."""
+        assert _parse_csv_arg("C:\\data\\sensors.csv:temp,humidity") == (
+            "C:\\data\\sensors.csv",
+            ["temp", "humidity"],
+        )
+
+    def test_windows_absolute_path_with_columns_and_typo(self) -> None:
+        assert _parse_csv_arg("C:\\data\\sensors.csv:temp:humidity") == (
+            "C:\\data\\sensors.csv",
+            ["temp:humidity"],
+        )
+
 
 # ===================================================================
 # _sniff_header_columns
