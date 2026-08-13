@@ -57,6 +57,21 @@ def _make_app(**kwargs: Any) -> Any:
         return _build_app(**defaults)
 
 
+async def _wait_for_screen_count(pilot: Any, count: int, tries: int = 20) -> None:
+    """Poll until the app's screen_stack reaches *count* screens.
+
+    A modal's dismiss() and its push_screen callback don't necessarily
+    finish popping the screen within a fixed number of pilot.pause() calls
+    -- how many event-loop ticks that takes varies with runner load, which
+    is why a hardcoded pause count is flaky on a slower CI runner (observed
+    on Windows). Poll instead of guessing.
+    """
+    for _ in range(tries):
+        if len(pilot.app.screen_stack) == count:
+            return
+        await pilot.pause()
+
+
 # ---------------------------------------------------------------------------
 # Widget composition
 # ---------------------------------------------------------------------------
@@ -85,6 +100,26 @@ class TestCompose:
                 option_values = [v for _, v in period_select._options]
                 for p in _PERIOD_CHOICES:
                     assert p in option_values
+
+    async def test_item_with_embedded_space_round_trips(self) -> None:
+        """An item containing spaces (e.g. a CSV path with a multi-word
+        column selection like ``file.csv:MG ROEWE,LAND ROVER``) must survive
+        being displayed in and re-parsed from the single-line tickers Input
+        as one item, not be split apart on whitespace."""
+        item = "file.csv:MG ROEWE,LAND ROVER"
+        calls: list[object] = []
+
+        def tracking_fetch(cols: list[str], period: str) -> dict:  # type: ignore[type-arg]
+            calls.append(cols)
+            return {col: make_series() for col in cols}
+
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app(
+                initial_columns=[item], fetch_fn=tracking_fetch
+            ).run_test():
+                pass
+
+        assert calls == [[item]]
 
     async def test_no_initial_columns_no_fetch(self) -> None:
         """When initial_columns is empty, fetch_fn is never called."""
@@ -375,13 +410,7 @@ class TestFromToSelect:
                 assert pilot.app.query(Select)[0].value == "1mo"
 
     async def test_valid_from_to_range_is_added_and_filters_data(self) -> None:
-        """Submitting from/to dates filters fetched data to that window.
-
-        Known flaky on the Windows CI runner: the FromToScreen modal's
-        Input.Submitted handling races with pilot timing there, so this
-        occasionally fails on a slower runner and passes on rerun. Not
-        observed on Linux/macOS runners.
-        """
+        """Submitting from/to dates filters fetched data to that window."""
         data = {
             "TSLA": [
                 (datetime(2024, 1, 1, tzinfo=timezone.utc), 1.0),
@@ -411,7 +440,7 @@ class TestFromToSelect:
                 pilot.app.screen.query_one("#to-input", Input).value = "2024-06"
                 pilot.app.screen.query_one("#to-input", Input).focus()
                 await pilot.press("enter")
-                await pilot.pause()
+                await _wait_for_screen_count(pilot, 1)
                 option_values = {v for _, v in pilot.app.query(Select)[0]._options}
 
         # The Input.Submitted event must not bubble out of the modal and
@@ -478,13 +507,7 @@ class TestFromToSelect:
         assert calls == []
 
     async def test_from_later_than_to_warns_and_reverts(self) -> None:
-        """A from-date after the to-date is rejected without changing period.
-
-        Known flaky on the Windows CI runner: the FromToScreen modal's
-        Input.Submitted handling races with pilot timing there, so this
-        occasionally fails on a slower runner and passes on rerun. Not
-        observed on Linux/macOS runners.
-        """
+        """A from-date after the to-date is rejected without changing period."""
         with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
             async with _make_app().run_test() as pilot:
                 await pilot.pause()
@@ -496,8 +519,7 @@ class TestFromToSelect:
                 pilot.app.screen.query_one("#to-input", Input).value = "2024-05"
                 pilot.app.screen.query_one("#to-input", Input).focus()
                 await pilot.press("enter")
-                await pilot.pause()
-                await pilot.pause()
+                await _wait_for_screen_count(pilot, 1)
                 assert pilot.app.is_running
                 assert len(pilot.app.screen_stack) == 1
                 assert pilot.app.query(Select)[0].value == "1mo"
