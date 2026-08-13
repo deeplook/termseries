@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import shlex
 import time
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -380,7 +381,11 @@ def _build_app(
                 s3.styles.width = max_len3 + 6
                 yield s3
 
-                default_text = " ".join(initial_columns) if initial_columns else ""
+                default_text = (
+                    " ".join(shlex.quote(c) for c in initial_columns)
+                    if initial_columns
+                    else ""
+                )
                 yield Input(placeholder="...", value=default_text, id="tickers")
 
             yield Image(id="chart")
@@ -421,7 +426,11 @@ def _build_app(
             if not tickers_str:
                 self.notify("Enter at least one ticker symbol", severity="warning")
                 return
-            columns = tickers_str.split()
+            try:
+                columns = shlex.split(tickers_str)
+            except ValueError as exc:
+                self.notify(f"Invalid input: {exc}", severity="error")
+                return
             explicit_range = self._explicit_ranges.get(period)
             if explicit_range is None:
                 fetch_period = period

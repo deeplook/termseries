@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `csv`: a headered file with more than one value column now plots every column by default (labelled `<stem>.<column>`), instead of silently reading only the first; append `:col1,col2` to a path to select specific columns instead
+- TUI: the tickers input now supports quoted, space-containing items (e.g. a column-selected CSV path) via shell-style parsing, instead of naive whitespace splitting
+
 ## [0.3.0] - 2026-08-06
 
 ### Added

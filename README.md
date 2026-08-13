@@ -19,8 +19,8 @@ or saves to file, with an optional interactive Textual TUI.
 - Fetch stock/crypto/index prices from Yahoo Finance via the `yahoo` subcommand, with auto-picked intra-day intervals for short periods (e.g. 5m for 1d, 15m for 5d/7d)
 - Chart prediction-market prices from Polymarket via the `polymarket` subcommand, with auto-picked aggregation intervals based on period duration
 - Plot Home Assistant sensor history via the `hass` subcommand (REST API)
-- Load local two-column CSV files (timestamp, value) via the `csv` subcommand
-- Auto-detect and skip CSV headers, blank lines, NaN/Inf values
+- Load local CSV files (timestamp, value) via the `csv` subcommand; a headered file with multiple value columns auto-plots all of them, or select specific ones with `file.csv:col1,col2`
+- Auto-detect and skip CSV headers, blank lines, blank values, NaN/Inf values
 - Accept ISO 8601 timestamps and Unix epochs in CSV files
 - Auto-detect the unit of measurement from Home Assistant entity attributes
 - All timestamps are stored internally as UTC; use `--tz` to display in another timezone
@@ -184,6 +184,12 @@ termseries csv /path/to/sensor.csv
 # Multiple files, last 7 days, with a custom unit label
 termseries csv temp.csv humidity.csv --last 7d --unit '°C'
 
+# Headered CSV with multiple value columns: plots every column
+termseries csv sensors.csv --last 7d
+
+# Only plot specific columns from a headered CSV
+termseries csv sensors.csv:temp,humidity --last 7d
+
 # Non-standard periods work everywhere
 termseries yahoo TSLA --last 14d
 termseries yahoo TSLA --last 2w
@@ -201,8 +207,8 @@ termseries -i csv sensor.csv
 
 The `csv` subcommand expects two-column CSV files (timestamp, value). Header
 rows are auto-detected and skipped. Timestamps can be ISO 8601 strings or Unix
-epochs. Blank lines and NaN/Inf values are silently skipped. Naive timestamps
-(without an explicit offset) are assumed to be UTC.
+epochs. Blank lines, blank values, and NaN/Inf values are silently skipped.
+Naive timestamps (without an explicit offset) are assumed to be UTC.
 
 ```csv
 2024-01-01T00:00:00Z,20.5
@@ -210,8 +216,28 @@ epochs. Blank lines and NaN/Inf values are silently skipped. Naive timestamps
 2024-01-03T00:00:00Z,22.1
 ```
 
-Each file becomes one series labelled by its filename (without extension). The
-`--last` filters to a now-anchored time window using free-form
+A plain two-column file becomes one series labelled by its filename (without
+extension). A CSV with a header row and more than one value column plots
+*every* column by default, each labelled `<stem>.<column>`:
+
+```csv
+timestamp,temp,humidity
+2024-01-01T00:00:00Z,20.5,50.0
+2024-01-02T00:00:00Z,21.0,55.0
+```
+
+```bash
+termseries csv sensors.csv --last 7d
+```
+
+Append `:col1,col2` to a path to plot only specific columns instead of every
+one:
+
+```bash
+termseries csv sensors.csv:temp,humidity --last 7d
+```
+
+The `--last` filters to a now-anchored time window using free-form
 `<number><unit>` syntax (e.g. `7d`, `2w`, `3mo`). Special values: `max`
 (default) shows all data with the x-axis extending to now; `auto` auto-fits
 the x-axis to the data with no empty space. The `--unit` option sets the

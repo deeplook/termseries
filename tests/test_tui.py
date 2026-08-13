@@ -86,6 +86,26 @@ class TestCompose:
                 for p in _PERIOD_CHOICES:
                     assert p in option_values
 
+    async def test_item_with_embedded_space_round_trips(self) -> None:
+        """An item containing spaces (e.g. a CSV path with a multi-word
+        column selection like ``file.csv:MG ROEWE,LAND ROVER``) must survive
+        being displayed in and re-parsed from the single-line tickers Input
+        as one item, not be split apart on whitespace."""
+        item = "file.csv:MG ROEWE,LAND ROVER"
+        calls: list[object] = []
+
+        def tracking_fetch(cols: list[str], period: str) -> dict:  # type: ignore[type-arg]
+            calls.append(cols)
+            return {col: make_series() for col in cols}
+
+        with patch("termseries.tui._render_png", return_value=_SMALL_PNG):
+            async with _make_app(
+                initial_columns=[item], fetch_fn=tracking_fetch
+            ).run_test():
+                pass
+
+        assert calls == [[item]]
+
     async def test_no_initial_columns_no_fetch(self) -> None:
         """When initial_columns is empty, fetch_fn is never called."""
         calls: list[object] = []

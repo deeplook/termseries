@@ -788,7 +788,9 @@ class TestCsvCommand:
     def test_csv_command_wires_fetch_and_output(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The csv command reads files and derives labels from their stems."""
+        """The csv command reads files and derives labels from the data
+        returned by fetch_csv_series (which labels by file stem, or by
+        stem.column when columns are selected)."""
         monkeypatch.chdir(tmp_path)
         captured: dict[str, object] = {}
 
@@ -822,8 +824,8 @@ class TestCsvCommand:
         fetch_mock.assert_called_once_with(
             ["temp.csv"], "7d", tz="UTC", resample="1m", aggregate="median"
         )
-        # Labels are the file stems, not the raw paths.
-        assert captured["names"] == ["temp"]
+        # Labels come from fetch_csv_series's returned keys.
+        assert captured["names"] == ["FAKE"]
 
 
 class TestHassCommand:

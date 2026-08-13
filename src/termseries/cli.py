@@ -728,12 +728,22 @@ def polymarket(
         "  termseries csv data.csv --last 30d --unit °C\n"
         "  termseries csv heart.csv --last 1mo --resample 1m --aggregate mean\n"
         "  termseries csv temp.csv humidity.csv --last 7d\n"
+        "  termseries csv sensors.csv --last 7d  (plots every column)\n"
+        "  termseries csv sensors.csv:temp,humidity --last 7d\n"
     ),
 )
 def csv_cmd(
     ctx: typer.Context,
     files: Annotated[
-        list[str], typer.Argument(help="CSV file paths (timestamp, value)")
+        list[str],
+        typer.Argument(
+            help=(
+                "CSV file paths (timestamp, value). A CSV with a header "
+                "row and multiple value columns plots all of them by "
+                "default; append :col1,col2 to a path to plot only "
+                "specific columns."
+            )
+        ),
     ],
     last: Annotated[
         str | None,
@@ -788,7 +798,6 @@ def csv_cmd(
         value_unit=unit,
         anchor_now=True,
         xlim_fn=lambda data: xlim_now(period, data, tz=resolve_tz(tz)),
-        labels_fn=lambda _data: [Path(f).stem for f in files],
         time_range=time_range,
         first_period=first_period,
         period_label=period_label,

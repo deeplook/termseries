@@ -112,6 +112,9 @@ def _read_csv(path: str) -> TimeSeries:
                     f"{path}:{lineno}: bad timestamp {ts_raw!r}"
                 ) from exc
 
+            if val_raw.strip() == "":
+                continue
+
             try:
                 val = float(val_raw)
             except ValueError as exc:
@@ -127,6 +130,138 @@ def _read_csv(path: str) -> TimeSeries:
 
     rows.sort(key=lambda r: r[0])
     return rows
+
+
+def _read_csv_columns(path: str, columns: list[str]) -> dict[str, TimeSeries]:
+    """Read a CSV with a header row and return one TimeSeries per column.
+
+    Unlike :func:`_read_csv`, this always requires a header row so that
+    *columns* can be resolved by name; there is no header auto-detection.
+    """
+    p = Path(path)
+    if not p.exists():
+        raise RuntimeError(f"File not found: {path}")
+    if not p.is_file():
+        raise RuntimeError(f"Not a file: {path}")
+
+    with p.open(newline="") as f:
+        reader = csv.reader(f)
+        try:
+            header = next(reader)
+        except StopIteration as exc:
+            raise RuntimeError(f"No valid data in {path}") from exc
+
+        indices: dict[str, int] = {}
+        for name in columns:
+            try:
+                indices[name] = header.index(name)
+            except ValueError as exc:
+                available = ", ".join(header[1:])
+                hint = (
+                    " Columns are comma-separated (path.csv:col1,col2); "
+                    "did you mean to use commas instead of colons?"
+                    if ":" in name
+                    else ""
+                )
+                raise RuntimeError(
+                    f"{path}: column {name!r} not found; available columns: "
+                    f"{available}.{hint}"
+                ) from exc
+
+        series: dict[str, TimeSeries] = {name: [] for name in columns}
+        for lineno, row in enumerate(reader, 2):
+            if not row or all(cell.strip() == "" for cell in row):
+                continue
+            if len(row) < len(header):
+                raise RuntimeError(
+                    f"{path}:{lineno}: expected {len(header)} columns, got {len(row)}"
+                )
+
+            try:
+                dt = _parse_timestamp(row[0])
+            except (ValueError, OSError) as exc:
+                raise RuntimeError(
+                    f"{path}:{lineno}: bad timestamp {row[0]!r}"
+                ) from exc
+
+            for name, idx in indices.items():
+                val_raw = row[idx]
+                if val_raw.strip() == "":
+                    continue
+                try:
+                    val = float(val_raw)
+                except ValueError as exc:
+                    raise RuntimeError(
+                        f"{path}:{lineno}: bad value {val_raw!r} in column {name!r}"
+                    ) from exc
+                if math.isnan(val) or math.isinf(val):
+                    continue
+                series[name].append((dt, val))
+
+    for name, rows in series.items():
+        if not rows:
+            raise RuntimeError(f"No valid data for column {name!r} in {path}")
+        rows.sort(key=lambda r: r[0])
+
+    return series
+
+
+def _sniff_header_columns(path: str) -> list[str] | None:
+    """Return the first row of *path* if it looks like a header row.
+
+    Uses the same header-vs-data heuristic as :func:`_read_csv`: a row only
+    counts as a header when neither its first nor second field parses as a
+    timestamp/number. Returns ``None`` for headerless files, files with
+    fewer than 2 columns, or files whose first row is data rather than a
+    header.
+    """
+    p = Path(path)
+    if not p.exists():
+        raise RuntimeError(f"File not found: {path}")
+    if not p.is_file():
+        raise RuntimeError(f"Not a file: {path}")
+
+    with p.open(newline="") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if not row or all(cell.strip() == "" for cell in row):
+                continue
+            if len(row) < 2:
+                return None
+            ts_raw, val_raw = row[0], row[1]
+            ts_ok = True
+            try:
+                _parse_timestamp(ts_raw)
+            except (ValueError, OSError):
+                ts_ok = False
+            val_ok = True
+            try:
+                float(val_raw)
+            except ValueError:
+                val_ok = False
+            return row if not ts_ok and not val_ok else None
+    return None
+
+
+def _parse_csv_arg(raw: str) -> tuple[str, list[str] | None]:
+    """Split a ``path[:col1,col2,...]`` CLI argument into path and columns.
+
+    The colon suffix is only recognised when the part before the *first*
+    colon looks like a ``.csv`` path, so plain paths are never misparsed
+    (e.g. Windows paths like ``C:\\data.csv`` have no ``.csv`` before their
+    colon and pass through untouched). Splitting on the first colon rather
+    than the last also means a column list mistakenly typed with colons
+    instead of commas (``file.csv:a:b:c``) still resolves to the real
+    ``file.csv`` path, so the resulting error names the bad column list
+    instead of claiming the file itself is missing.
+    """
+    if ":" in raw:
+        path_part, _, cols_part = raw.partition(":")
+        if path_part.lower().endswith(".csv") and cols_part:
+            columns = [c.strip() for c in cols_part.split(",") if c.strip()]
+            if columns:
+                return path_part, columns
+    return raw, None
 
 
 # ---------------------------------------------------------------------------
@@ -194,27 +329,58 @@ def fetch_csv_series(
     (ytd/mtd/wtd/dtd/htd) anchor their calendar boundary in. When *resample*
     is set, each filtered series is reduced into fixed UTC buckets using
     *aggregate*.
+
+    Each entry in *paths* is a CSV file path, optionally suffixed with
+    ``:col1,col2,...`` to select specific columns from a header row. Without
+    a suffix, a CSV whose header has more than one value column has every
+    value column auto-plotted (labelled ``<stem>.<column>``) rather than
+    silently reading only the first; a plain 2-column CSV keeps its
+    original ``<stem>`` label.
     """
     now = datetime.now(timezone.utc) if parse_period(period) is not None else None
     resolved_tz = resolve_tz(tz)
     seen: set[str] = set()
     result: dict[str, TimeSeries] = {}
 
-    for raw_path in paths:
-        resolved = str(Path(raw_path).resolve())
-        if resolved in seen:
+    for raw_arg in paths:
+        path, columns = _parse_csv_arg(raw_arg)
+        if columns is None:
+            header = _sniff_header_columns(path)
+            if header is not None and len(header) > 2:
+                # A wide CSV with no explicit :col selection -- auto-plot
+                # every value column instead of silently dropping all but
+                # the first, as a bare 2-column read would.
+                columns = header[1:]
+        resolved = str(Path(path).resolve())
+        dedup_key = f"{resolved}:{','.join(columns)}" if columns else resolved
+        if dedup_key in seen:
             continue
-        seen.add(resolved)
+        seen.add(dedup_key)
 
-        series = _read_csv(raw_path)
-        series = filter_period(series, period, reference=now, tz=resolved_tz)
-        if not series:
-            raise RuntimeError(
-                f"{raw_path}: no data left after trimming to period={period}."
-            )
-        if resample is not None:
-            series = resample_series(series, resample, aggregate)
-        label = Path(raw_path).stem
-        result[label] = series
+        if columns is not None:
+            for column, column_series in _read_csv_columns(path, columns).items():
+                column_series = filter_period(
+                    column_series, period, reference=now, tz=resolved_tz
+                )
+                if not column_series:
+                    raise RuntimeError(
+                        f"{path}:{column}: no data left after trimming to "
+                        f"period={period}."
+                    )
+                if resample is not None:
+                    column_series = resample_series(column_series, resample, aggregate)
+                label = f"{Path(path).stem}.{column}"
+                result[label] = column_series
+        else:
+            series = _read_csv(path)
+            series = filter_period(series, period, reference=now, tz=resolved_tz)
+            if not series:
+                raise RuntimeError(
+                    f"{path}: no data left after trimming to period={period}."
+                )
+            if resample is not None:
+                series = resample_series(series, resample, aggregate)
+            label = Path(path).stem
+            result[label] = series
 
     return result
