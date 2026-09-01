@@ -74,6 +74,8 @@ async def _wait_for_screen_count(pilot: Any, count: int, tries: int = 100) -> No
             return
         await pilot.pause()
         await asyncio.sleep(0.01)
+    if pilot.app._exception is not None:
+        raise pilot.app._exception
     raise AssertionError(
         f"screen_stack never reached {count} screens after {tries} tries: "
         f"{pilot.app.screen_stack!r}"
