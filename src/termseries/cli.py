@@ -20,6 +20,7 @@ from termseries.detect import (
 )
 from termseries.gaps import apply_gaps
 from termseries.hass_source import _detect_unit, expand_entities, fetch_hass_series
+from termseries.obsidian_source import fetch_obsidian_series
 from termseries.period import (
     TUI_PERIOD_CHOICES,
     parse_period,
@@ -67,6 +68,7 @@ app = typer.Typer(
         "  termseries polymarket will-bitcoin-hit-150k-in-2026\n"
         "  termseries csv data.csv --last 30d\n"
         "  termseries hass sensor.temperature --last 7d\n"
+        "  termseries obsidian ~/vault/Daily:mood,weight --last 90d\n"
     ),
 )
 
@@ -868,6 +870,72 @@ def hass(
             f"Fetching {', '.join(resolved_entities)} from Home Assistant…"
         ),
         value_unit=resolved_unit,
+        anchor_now=True,
+        xlim_fn=lambda data: xlim_now(period, data, tz=resolve_tz(tz)),
+        time_range=time_range,
+        first_period=first_period,
+        period_label=period_label,
+    )
+
+
+@app.command(  # type: ignore[misc]
+    name="obsidian",
+    epilog=(
+        "Examples:\n\n"
+        "  termseries obsidian ~/vault/Daily:mood,weight\n"
+        "  termseries obsidian ~/vault/Daily:mood --last 90d\n"
+        "  termseries obsidian ~/vault/Daily:weight --unit kg --last 1y\n"
+    ),
+)
+def obsidian(
+    ctx: typer.Context,
+    dirs: Annotated[
+        list[str],
+        typer.Argument(
+            help=(
+                "Obsidian daily-notes directories, each suffixed with "
+                ":field1,field2 selecting numeric YAML-frontmatter fields "
+                "to plot (mandatory -- fields are never auto-expanded)."
+            )
+        ),
+    ],
+    last: Annotated[
+        str | None,
+        typer.Option(
+            "--last",
+            "--period",
+            help="Rolling window ending now (e.g. 7d, 2w, max)",
+            callback=_validate_period,
+        ),
+    ] = None,
+    from_: Annotated[
+        str | None, typer.Option("--from", help="Inclusive start time")
+    ] = None,
+    to: Annotated[
+        str | None, typer.Option("--to", help="Inclusive end time (default: now)")
+    ] = None,
+    first: Annotated[
+        str | None,
+        typer.Option(
+            "--first",
+            help="Data-anchored duration; can change when history is backfilled",
+            callback=_validate_first,
+        ),
+    ] = None,
+    unit: Annotated[str, typer.Option(help="Value unit label")] = "value",
+) -> None:
+    """Plot numeric YAML-frontmatter fields from Obsidian daily notes."""
+    tz = ctx.obj["tz"]
+    period, period_label, time_range, first_period = _resolve_time_range(
+        last, first, from_, to, default_last="max", tz=tz
+    )
+    _run_source(
+        ctx,
+        dirs,
+        period,
+        partial(fetch_obsidian_series, tz=tz),
+        fetching_message=f"Reading {', '.join(dirs)}…",
+        value_unit=unit,
         anchor_now=True,
         xlim_fn=lambda data: xlim_now(period, data, tz=resolve_tz(tz)),
         time_range=time_range,
