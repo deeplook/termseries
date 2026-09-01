@@ -335,6 +335,7 @@ class TestFetchObsidianSeries:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
         vault = tmp_path / "Daily"
         vault.mkdir()
         _write_note(vault, "2024-01-01.md", ["mood: 6"])
