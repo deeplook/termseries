@@ -6,6 +6,7 @@ No real terminal, PTY, or network I/O is required.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
@@ -57,19 +58,26 @@ def _make_app(**kwargs: Any) -> Any:
         return _build_app(**defaults)
 
 
-async def _wait_for_screen_count(pilot: Any, count: int, tries: int = 20) -> None:
+async def _wait_for_screen_count(pilot: Any, count: int, tries: int = 100) -> None:
     """Poll until the app's screen_stack reaches *count* screens.
 
     A modal's dismiss() and its push_screen callback don't necessarily
     finish popping the screen within a fixed number of pilot.pause() calls
     -- how many event-loop ticks that takes varies with runner load, which
     is why a hardcoded pause count is flaky on a slower CI runner (observed
-    on Windows). Poll instead of guessing.
+    on Windows). Poll instead of guessing, and raise instead of silently
+    proceeding on a stack that never converged -- that used to surface as
+    a confusing failure several lines later instead of here.
     """
     for _ in range(tries):
         if len(pilot.app.screen_stack) == count:
             return
         await pilot.pause()
+        await asyncio.sleep(0.01)
+    raise AssertionError(
+        f"screen_stack never reached {count} screens after {tries} tries: "
+        f"{pilot.app.screen_stack!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
