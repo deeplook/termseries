@@ -964,6 +964,37 @@ class TestHassCommand:
         assert captured["xlim"] is None
 
 
+class TestObsidianCommand:
+    def test_obsidian_command_wires_fetch_and_output(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The obsidian command reads the dir:field arg through and derives
+        labels from the data returned by fetch_obsidian_series."""
+        monkeypatch.chdir(tmp_path)
+        captured: dict[str, object] = {}
+
+        def mock_output(
+            png: object, names: object, ratio: object, period: object, **kwargs: object
+        ) -> None:
+            captured["names"] = names
+
+        with (
+            patch(
+                "termseries.cli.fetch_obsidian_series", return_value=_FAKE_DATA
+            ) as fetch_mock,
+            patch("termseries.cli._render_png", return_value=_FAKE_PNG),
+            patch("termseries.cli._output_png", side_effect=mock_output),
+        ):
+            result = runner.invoke(
+                app,
+                ["obsidian", f"{tmp_path}:mood", "--period", "30d"],
+            )
+
+        assert result.exit_code == 0
+        fetch_mock.assert_called_once_with([f"{tmp_path}:mood"], "30d", tz="UTC")
+        assert captured["names"] == ["FAKE"]
+
+
 # ---------------------------------------------------------------------------
 # error propagation and interactive mode (shared across data commands)
 # ---------------------------------------------------------------------------
@@ -976,6 +1007,7 @@ class TestHassCommand:
         (["polymarket", "some-market"], "fetch_polymarket_series"),
         (["csv", "data.csv"], "fetch_csv_series"),
         (["hass", "sensor.x"], "fetch_hass_series"),
+        (["obsidian", "some_dir:mood"], "fetch_obsidian_series"),
     ],
 )
 class TestDataCommandBehaviors:
