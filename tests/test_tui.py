@@ -447,6 +447,7 @@ class TestFromToSelect:
                 pilot.app.screen.query_one("#from-input", Input).value = "2024-05"
                 pilot.app.screen.query_one("#to-input", Input).value = "2024-06"
                 pilot.app.screen.query_one("#to-input", Input).focus()
+                await pilot.pause()
                 await pilot.press("enter")
                 await _wait_for_screen_count(pilot, 1)
                 option_values = {v for _, v in pilot.app.query(Select)[0]._options}
@@ -482,6 +483,7 @@ class TestFromToSelect:
                 await pilot.pause()
                 pilot.app.screen.query_one("#from-input", Input).value = "2020-01-01"
                 pilot.app.screen.query_one("#to-input", Input).focus()
+                await pilot.pause()
                 await pilot.press("enter")
                 await pilot.pause()
 
@@ -526,6 +528,7 @@ class TestFromToSelect:
                 pilot.app.screen.query_one("#from-input", Input).value = "2024-06"
                 pilot.app.screen.query_one("#to-input", Input).value = "2024-05"
                 pilot.app.screen.query_one("#to-input", Input).focus()
+                await pilot.pause()
                 await pilot.press("enter")
                 await _wait_for_screen_count(pilot, 1)
                 assert pilot.app.is_running
