@@ -5,6 +5,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/termseries.svg)](https://pypi.org/project/termseries/)
 [![Downloads](https://img.shields.io/pypi/dm/termseries.svg)](https://pepy.tech/project/termseries)
 [![License](https://img.shields.io/github/license/deeplook/termseries.svg)](https://github.com/deeplook/termseries/blob/main/LICENSE)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/deeplook)
 
 Show timeseries data in the terminal using matplotlib. Plot stock prices from
 Yahoo Finance, sensor data from Home Assistant, numeric fields from Obsidian
