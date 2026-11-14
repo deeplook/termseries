@@ -474,6 +474,16 @@ on the period duration:
 | ≤ 7 days        | 15m          |
 | > 7 days        | 1d           |
 
+Yahoo requests share one session per fetch and pause two seconds between
+unique tickers. On HTTP 429, termseries retries twice, waiting approximately
+30 seconds and then 60 seconds (plus jitter), or longer if Yahoo supplies a
+`Retry-After` header. Retry waits are logged. Persistent rate limits stop the
+fetch with an actionable error; other HTTP and network errors fail immediately.
+
+Termseries already uses the simple `Mozilla/5.0` User-Agent that worked in
+our downloader checks. Splitting a range into more requests does not resolve
+an IP/client block, so ranges are fetched in one request per ticker.
+
 ### Polymarket-specific Options
 
 | Option | Description |
