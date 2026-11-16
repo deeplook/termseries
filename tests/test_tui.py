@@ -448,10 +448,10 @@ class TestFromToSelect:
                 await pilot.pause()
                 pilot.app.screen.query_one("#from-input", Input).value = "2024-05"
                 pilot.app.screen.query_one("#to-input", Input).value = "2024-06"
-                # Use the same focus path as a user. A direct .focus() can
-                # race FromToScreen.on_mount() on Windows, where the modal's
-                # initial focus may be applied after the test's focus call.
-                await pilot.click("#to-input")
+                assert pilot.app.focused.id == "from-input"
+                # Enter advances through the dialog without relying on mouse
+                # coordinates, which may be outside Windows CI's small viewport.
+                await pilot.press("enter")
                 await pilot.pause()
                 assert pilot.app.focused.id == "to-input"
                 await pilot.press("enter")

@@ -31,14 +31,14 @@ uv run --extra docs mkdocs build --strict
 
 The build checks page links and anchors. `site/` is generated output and is ignored
 by Git. A small hook in `tools/docs_hooks.py` includes the repository changelog,
-license, screenshot, config template, validation report and offline gallery without
-keeping duplicate source copies. Only these explicitly selected files are published;
-other local experiments under `work/` are not included.
+license, screenshot, config template, validation report and offline gallery. The
+gallery and validation source live in `docs/_source/`; local experiments in `work/`
+are not required to build or publish the documentation.
 
 Regenerate the gallery when its fixtures or rendering change:
 
 ```sh
-uv run --extra browser python work/browser_examples.py
+uv run --extra browser python tools/browser_examples.py
 ```
 
 ## Regenerate the TUI image
@@ -47,7 +47,7 @@ The checked-in image uses the actual Textual controls and chart PNG, with
 synthetic demo observations. Regenerate it from the repository root:
 
 ```sh
-env -u NO_COLOR uv run python work/capture_tui.py
+env -u NO_COLOR uv run python tools/capture_tui.py
 cp work/tui-preview.png docs/assets/termseries-tui.png
 ```
 

@@ -87,8 +87,8 @@ def on_files(files: Files, config: MkDocsConfig) -> Files:
     sources = {
         "changelog.md": "CHANGELOG.md",
         "license.md": "LICENSE",
-        "validation.md": "work/browser-validation.md",
-        "examples/browser-examples.html": "work/browser-examples.html",
+        "validation.md": "docs/_source/browser-validation.md",
+        "examples/browser-examples.html": "docs/_source/browser-examples.html",
         "assets/termseries-yahoo.png": "images/termseries-yahoo.png",
         "assets/termseries.env.example": "termseries.env.example",
     }
@@ -96,7 +96,8 @@ def on_files(files: Files, config: MkDocsConfig) -> Files:
         files.append(
             File.generated(config, destination, abs_src_path=str(root / source))
         )
-    library, demos = browser_demos((root / "work/browser-examples.html").read_text())
+    gallery = root / "docs/_source/browser-examples.html"
+    library, demos = browser_demos(gallery.read_text())
     files.append(File.generated(config, "assets/plotly-demo.js", content=library))
     files.append(File.generated(config, "examples/browser-demos.html", content=demos))
     return files

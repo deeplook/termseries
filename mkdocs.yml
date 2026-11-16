@@ -65,6 +65,9 @@ nav:
       - Changelog: changelog.md
       - License: license.md
 
+# Source material consumed by docs_hooks.py, but not published as pages.
+exclude_docs: _source/**
+
 hooks:
   - tools/docs_hooks.py
 
