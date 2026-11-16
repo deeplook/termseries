@@ -7,6 +7,8 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files
+        # Intentional offline gallery embeds Plotly.js and rendered PNGs.
+        exclude: ^work/browser-examples\.html$
       - id: check-merge-conflict
 
   # Local hooks call the project's pinned ruff/mypy via uv, so the commit-time

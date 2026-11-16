@@ -108,7 +108,11 @@ def parse_time_bound(
         assert delta is not None  # "max"/"auto" handled above
         return now - delta
     try:
-        parsed = datetime.fromisoformat(pad_datetime_str(value, round_up=round_up))
+        # Python 3.10 requires an explicit UTC offset instead of the ISO Z suffix.
+        iso = pad_datetime_str(value, round_up=round_up)
+        if iso.endswith("Z"):
+            iso = iso[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(iso)
     except ValueError as exc:
         raise ValueError(
             "Use an ISO-8601 date/time (e.g. 2026-07-01 or "

@@ -8,7 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Optional `browser` extra with `--backend plotly` for offline interactive HTML charts, gap handling, timezone-aware labels, and `--open`
 - CI now also runs the test suite on Python 3.14 and 3.15, in addition to 3.10-3.13
+
+### Fixed
+- ISO time bounds ending in `Z` now parse on Python 3.10, matching newer Python versions
 
 ## [0.4.0] - 2026-09-01
 

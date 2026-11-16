@@ -657,3 +657,41 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 [MIT](LICENSE)
+
+### Interactive browser charts (optional)
+
+Install the browser extra to export interactive, self-contained HTML charts:
+
+```sh
+pip install 'termseries[browser]'
+termseries --backend plotly --output prices.html --open yahoo --last 1y AAPL MSFT
+termseries --backend plotly --gaps show csv sensor.csv --last 7d
+termseries --backend plotly --mode seasonal --cycle 1w csv sensor.csv --last 30d
+termseries --backend plotly --output - yahoo --last 1mo AAPL > prices.html
+```
+
+Charts support hover, zoom, pan, reset and legend toggles. HTML includes Plotly.js
+and the data, so it works offline without a server. Files can be several megabytes.
+The chart contains a snapshot: changing the visible range does not fetch more data.
+Matplotlib remains the default backend, including for the interactive terminal UI.
+
+`--gaps` keeps its existing meaning: break lines at detected missing intervals,
+while preserving elapsed time on the axis. It does not remove weekends or market
+closures. All chart modes and step styles are supported. Relative mode retains
+its daily join, even with intraday inputs. Seasonal hover labels show projected
+cycle positions rather than original dates.
+
+`--output auto` writes an automatically named HTML file; `--open` opens a saved
+file. Browser rendering does not support `--interactive`, `--reload`, `--copy`,
+Matplotlib `--style` files, inline output or terminal protocols. Use
+`--protocol auto` to override a configured terminal protocol. Explicit filenames
+must end in `.html` or `.htm`. Browser `--theme auto` follows the browser's color
+preference when the page loads. Explicit `--tz` zones control ticks and hover;
+with `--tz local`, the generating machine's timezone is saved in the chart,
+so ticks and hover stay consistent when viewed elsewhere.
+
+A local desktop performance sample, minimum-version checks, and remaining limitations
+are recorded in [browser validation](work/browser-validation.md). Large charts embed
+all observations and can produce files tens of megabytes in size; no silent
+downsampling is applied. For direct visual comparisons, open
+[the offline example gallery](work/browser-examples.html).

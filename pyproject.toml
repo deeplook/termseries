@@ -22,6 +22,7 @@ exclude = [
     "termseries_*.png",
     "NOTES.md",
     "uv.lock",
+    "work/",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -65,6 +66,7 @@ dependencies = [
 termseries = "termseries.__main__:main"
 
 [project.optional-dependencies]
+browser = ["plotly>=6.0,<7", "tzlocal>=5,<6"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=1.0",

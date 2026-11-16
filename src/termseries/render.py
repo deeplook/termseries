@@ -6,7 +6,7 @@ import hashlib
 import math
 import re
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from datetime import datetime, timedelta, tzinfo
 from io import BytesIO
 from pathlib import Path
@@ -23,6 +23,24 @@ import matplotlib.pyplot as plt  # noqa: E402
 from cycler import cycler  # noqa: E402
 from matplotlib.ticker import FuncFormatter  # noqa: E402
 
+from termseries.chart import (  # noqa: F401
+    _TRANSFORMS,
+)
+from termseries.chart import (
+    _transform_cumulative as _transform_cumulative,
+)
+from termseries.chart import (
+    _transform_delta as _transform_delta,
+)
+from termseries.chart import (
+    _transform_drawdown as _transform_drawdown,
+)
+from termseries.chart import (
+    _transform_indexed as _transform_indexed,
+)
+from termseries.chart import (
+    _transform_returns as _transform_returns,
+)
 from termseries.period import resolve_tz
 from termseries.seasonal import SECONDS_PER_WEEK, WEEKDAY_NAMES, parse_cycle
 from termseries.terminal import (
@@ -41,8 +59,6 @@ from termseries.terminal import (
     _terminal_pixel_width,
 )
 from termseries.types import TimeSeries
-
-_Transform = Callable[[Sequence[Any], Sequence[float]], tuple[list[Any], list[float]]]
 
 
 def _calendar_divider_locator(
@@ -143,82 +159,6 @@ def _auto_output_filename(
         names_part = f"{names_part[:96].rstrip('-')}-h{digest}"
     w, h = ratio
     return f"termseries_{names_part}_{period}_{w}x{h}.png"
-
-
-def _transform_indexed(
-    xs: Sequence[Any], ys: Sequence[float]
-) -> tuple[list[Any], list[float]]:
-    if not ys:
-        return list(xs), list(ys)
-    base = ys[0]
-    if base == 0 or math.isnan(base):
-        # No meaningful "% of start" when the baseline is 0 or missing.
-        return list(xs), [float("nan")] * len(ys)
-    return list(xs), [100.0 * y / base for y in ys]
-
-
-def _transform_drawdown(
-    xs: Sequence[Any], ys: Sequence[float]
-) -> tuple[list[Any], list[float]]:
-    if not ys:
-        return list(xs), list(ys)
-    peak: float | None = None
-    dd: list[float] = []
-    for y in ys:
-        if math.isnan(y):
-            dd.append(float("nan"))
-        else:
-            peak = y if peak is None else max(peak, y)
-            dd.append(float("nan") if peak == 0 else (y / peak - 1.0) * 100.0)
-    return list(xs), dd
-
-
-def _transform_returns(
-    xs: Sequence[Any], ys: Sequence[float]
-) -> tuple[list[Any], list[float]]:
-    if len(ys) < 2:
-        return list(xs), list(ys)
-    returns: list[float] = []
-    for i in range(1, len(ys)):
-        prev = ys[i - 1]
-        if prev == 0 or math.isnan(prev) or math.isnan(ys[i]):
-            returns.append(float("nan"))
-        else:
-            returns.append((ys[i] / prev - 1.0) * 100.0)
-    return list(xs[1:]), returns
-
-
-def _transform_cumulative(
-    xs: Sequence[Any], ys: Sequence[float]
-) -> tuple[list[Any], list[float]]:
-    if not ys:
-        return list(xs), list(ys)
-    cumulative: list[float] = []
-    total = 0.0
-    for y in ys:
-        if math.isnan(y):
-            cumulative.append(float("nan"))
-        else:
-            total += y
-            cumulative.append(total)
-    return list(xs), cumulative
-
-
-def _transform_delta(
-    xs: Sequence[Any], ys: Sequence[float]
-) -> tuple[list[Any], list[float]]:
-    if len(ys) < 2:
-        return list(xs), list(ys)
-    return list(xs[1:]), [ys[i] - ys[i - 1] for i in range(1, len(ys))]
-
-
-_TRANSFORMS: dict[str, _Transform] = {
-    "indexed": _transform_indexed,
-    "drawdown": _transform_drawdown,
-    "returns": _transform_returns,
-    "cumulative": _transform_cumulative,
-    "delta": _transform_delta,
-}
 
 
 def _render_png(

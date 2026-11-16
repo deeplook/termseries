@@ -8,6 +8,11 @@ from enum import Enum
 TimeSeries = list[tuple[datetime, float]]
 
 
+class Backend(str, Enum):
+    matplotlib = "matplotlib"
+    plotly = "plotly"
+
+
 class Mode(str, Enum):
     absolute = "absolute"
     indexed = "indexed"
