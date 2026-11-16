@@ -8,7 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- PyPI release publishing with signed provenance attestations through the PyPA Trusted Publishing action
+- TUI screenshot and interactive indexed, gap, and seasonal examples embedded in the documentation guides
+- Searchable MkDocs Material documentation on GitHub Pages, with topic guides, API examples, and the renderer comparison gallery
+
+### Changed
+- README condensed into installation, quick start, and links to the detailed guides
+
+### Fixed
+- Local MkDocs previews retain the public site URL in canonical links and sitemaps
+
+## [0.5.0] - 2026-11-16
+
+### Added
+- Browser/Python usage guide with TSLA/NVDA indexed examples, embedding, sizing, theme options, and gap/seasonal preparation
+- `--html-fragment` exports a self-contained Plotly chart for insertion into an existing HTML page, sized relative to its container
+- Optional `browser` extra with `--backend plotly` for offline interactive HTML charts, gap handling, timezone-aware labels, and `--open`
 - CI now also runs the test suite on Python 3.14 and 3.15, in addition to 3.10-3.13
+
+### Fixed
+- ISO time bounds ending in `Z` now parse on Python 3.10, matching newer Python versions
 
 ## [0.4.0] - 2026-09-01
 

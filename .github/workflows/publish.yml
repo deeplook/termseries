@@ -20,5 +20,7 @@ jobs:
       - name: Build
         run: uv build
 
-      - name: Publish to PyPI
-        run: uv publish
+      - name: Publish to PyPI with provenance
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # release/v1
+        with:
+          attestations: true

@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+import math
+import random
+import time
+from contextlib import nullcontext
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
 import requests
 
@@ -14,20 +20,71 @@ from termseries.period import (
 )
 from termseries.types import TimeSeries
 
+_LOGGER = logging.getLogger(__name__)
+_RATE_LIMIT_RETRIES = 2
+_TICKER_PAUSE = 2
+
+
+def _retry_delay(response: requests.Response, attempt: int) -> float:
+    """Honor Retry-After without shortening the exponential backoff."""
+    delay = float(30 * 2**attempt)
+    retry_after = response.headers.get("Retry-After")
+    if retry_after:
+        try:
+            server_delay = float(retry_after)
+        except ValueError:
+            try:
+                server_delay = (
+                    parsedate_to_datetime(retry_after).timestamp() - time.time()
+                )
+            except (TypeError, ValueError, OverflowError):
+                server_delay = 0
+        if math.isfinite(server_delay):
+            delay = max(delay, server_delay)
+    return delay + random.uniform(0, 1)
+
 
 def _fetch_closes(
-    ticker: str, period: str, interval: str = "1d"
+    ticker: str,
+    period: str,
+    interval: str = "1d",
+    *,
+    session: requests.Session | None = None,
 ) -> list[tuple[datetime, float]]:
     """Return list of (UTC datetime, close) points for the requested period."""
     url = (
         f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
         f"?range={period}&interval={interval}"
     )
-    try:
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
-        resp.raise_for_status()
-    except requests.RequestException as exc:
-        raise RuntimeError(f"Yahoo Finance request failed for {ticker}: {exc}") from exc
+    with requests.Session() if session is None else nullcontext(session) as client:
+        for attempt in range(_RATE_LIMIT_RETRIES + 1):
+            try:
+                resp = client.get(
+                    url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15
+                )
+                if resp.status_code != 429:
+                    resp.raise_for_status()
+                    break
+            except requests.RequestException as exc:
+                raise RuntimeError(
+                    f"Yahoo Finance request failed for {ticker}: {exc}"
+                ) from exc
+            resp.close()
+            if attempt == _RATE_LIMIT_RETRIES:
+                raise RuntimeError(
+                    f"Yahoo Finance request failed for {ticker}: HTTP 429 "
+                    "Too Many Requests after backoff; stop and retry later. "
+                    "Smaller ranges cannot fix an IP/client block."
+                )
+            delay = _retry_delay(resp, attempt)
+            _LOGGER.warning(
+                "%s: Yahoo returned HTTP 429; retrying in %.1fs (%d/%d).",
+                ticker,
+                delay,
+                attempt + 1,
+                _RATE_LIMIT_RETRIES,
+            )
+            time.sleep(delay)
     payload = resp.json()
 
     result = (payload.get("chart") or {}).get("result") or []
@@ -80,13 +137,16 @@ def fetch_yahoo_series(
         )
 
     result: dict[str, TimeSeries] = {}
-    for ticker in tickers:
-        points = _fetch_closes(ticker, covering, resolved)
-        if need_trim:
-            points = filter_period(points, period, reference=now, tz=resolved_tz)
-            if not points:
-                raise RuntimeError(
-                    f"{ticker}: no data left after trimming to period={period}."
-                )
-        result[ticker] = points
+    with requests.Session() as session:
+        for index, ticker in enumerate(tickers):
+            if index:
+                time.sleep(_TICKER_PAUSE)
+            points = _fetch_closes(ticker, covering, resolved, session=session)
+            if need_trim:
+                points = filter_period(points, period, reference=now, tz=resolved_tz)
+                if not points:
+                    raise RuntimeError(
+                        f"{ticker}: no data left after trimming to period={period}."
+                    )
+            result[ticker] = points
     return result

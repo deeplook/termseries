@@ -47,6 +47,7 @@ from termseries.terminal import (
 )
 from termseries.tui import _run_interactive
 from termseries.types import (
+    Backend,
     ColorCycle,
     LineStyle,
     Mode,
@@ -204,6 +205,32 @@ def _run_source(
                 )
             elif xlim_fn is not None:
                 render_kwargs["xlim"] = xlim_fn(data)
+        if opts["backend"] == "plotly":
+            from termseries.browser import output_html, render_html
+
+            html = render_html(
+                data,
+                r,
+                display_period,
+                mode=opts["mode"],
+                color_cycle=opts["colors"],
+                fit=opts["ratio"] is None,
+                html_fragment=opts["html_fragment"],
+                tz=opts["tz"],
+                line_style=opts["line_style"],
+                theme=opts["theme"],
+                **render_kwargs,
+            )
+            labels = labels_fn(data) if labels_fn is not None else list(data.keys())
+            output_html(
+                html,
+                labels,
+                r,
+                display_period,
+                output=opts["output"],
+                open_browser=opts["open_browser"],
+            )
+            return
         png = _render_png(
             data,
             r,
@@ -431,6 +458,18 @@ def main(
             is_eager=True,
         ),
     ] = False,
+    backend: Annotated[
+        Backend, typer.Option(help="Rendering backend")
+    ] = Backend.matplotlib,
+    html_fragment: Annotated[
+        bool,
+        typer.Option(
+            "--html-fragment", help="Export a chart fragment for an HTML page"
+        ),
+    ] = False,
+    open_browser: Annotated[
+        bool, typer.Option("--open", help="Open the saved browser chart")
+    ] = False,
     ratio: Annotated[
         str | None, typer.Option(help='Aspect ratio "W:H" or "fit"')
     ] = None,
@@ -506,6 +545,9 @@ def main(
     ] = None,
 ) -> None:
     ctx.ensure_object(dict)
+    ctx.obj["backend"] = backend.value
+    ctx.obj["html_fragment"] = html_fragment
+    ctx.obj["open_browser"] = open_browser
     effective_ratio = ("fit" if interactive else "4:1") if ratio is None else ratio
     ctx.obj["ratio"] = (
         None
@@ -562,6 +604,39 @@ def main(
             raw_protocol = "auto"
         protocol = raw_protocol
     ctx.obj["protocol"] = protocol
+
+    if html_fragment and backend != Backend.plotly:
+        raise typer.BadParameter("--html-fragment requires --backend plotly.")
+    if backend == Backend.plotly:
+        if (
+            interactive
+            or reload
+            or copy
+            or style
+            or output == "inline"
+            or protocol != "auto"
+        ):
+            raise typer.BadParameter(
+                "Plotly does not support --interactive, --reload, --copy, --style, "
+                "inline output or terminal protocols; use --protocol auto."
+            )
+        if output not in ("auto", "-") and Path(output).suffix.lower() not in (
+            ".html",
+            ".htm",
+        ):
+            raise typer.BadParameter(
+                "Plotly output must use a .html or .htm extension."
+            )
+        if open_browser and output == "-":
+            raise typer.BadParameter("--open requires a file output.")
+        from termseries.browser import require_plotly
+
+        try:
+            require_plotly()
+        except RuntimeError as exc:
+            raise typer.BadParameter(str(exc)) from None
+    elif open_browser:
+        raise typer.BadParameter("--open requires --backend plotly.")
 
     _debug_echo(f"theme={theme} output={output} protocol={protocol}")
     _debug_echo(f"mode={ctx.obj['mode']} ratio={ctx.obj['ratio']} tz={ctx.obj['tz']}")

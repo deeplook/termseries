@@ -448,8 +448,12 @@ class TestFromToSelect:
                 await pilot.pause()
                 pilot.app.screen.query_one("#from-input", Input).value = "2024-05"
                 pilot.app.screen.query_one("#to-input", Input).value = "2024-06"
-                pilot.app.screen.query_one("#to-input", Input).focus()
+                assert pilot.app.focused.id == "from-input"
+                # Enter advances through the dialog without relying on mouse
+                # coordinates, which may be outside Windows CI's small viewport.
+                await pilot.press("enter")
                 await pilot.pause()
+                assert pilot.app.focused.id == "to-input"
                 await pilot.press("enter")
                 await _wait_for_screen_count(pilot, 1)
                 option_values = {v for _, v in pilot.app.query(Select)[0]._options}
@@ -484,8 +488,10 @@ class TestFromToSelect:
                 pilot.app.query(Select)[0].value = _FROM_TO
                 await pilot.pause()
                 pilot.app.screen.query_one("#from-input", Input).value = "2020-01-01"
-                pilot.app.screen.query_one("#to-input", Input).focus()
+                assert pilot.app.focused.id == "from-input"
+                await pilot.press("enter")
                 await pilot.pause()
+                assert pilot.app.focused.id == "to-input"
                 await pilot.press("enter")
                 await pilot.pause()
 
@@ -529,8 +535,10 @@ class TestFromToSelect:
                 await pilot.pause()
                 pilot.app.screen.query_one("#from-input", Input).value = "2024-06"
                 pilot.app.screen.query_one("#to-input", Input).value = "2024-05"
-                pilot.app.screen.query_one("#to-input", Input).focus()
+                assert pilot.app.focused.id == "from-input"
+                await pilot.press("enter")
                 await pilot.pause()
+                assert pilot.app.focused.id == "to-input"
                 await pilot.press("enter")
                 await _wait_for_screen_count(pilot, 1)
                 assert pilot.app.is_running
