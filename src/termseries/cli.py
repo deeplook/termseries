@@ -215,6 +215,7 @@ def _run_source(
                 mode=opts["mode"],
                 color_cycle=opts["colors"],
                 fit=opts["ratio"] is None,
+                html_fragment=opts["html_fragment"],
                 tz=opts["tz"],
                 line_style=opts["line_style"],
                 theme=opts["theme"],
@@ -460,6 +461,12 @@ def main(
     backend: Annotated[
         Backend, typer.Option(help="Rendering backend")
     ] = Backend.matplotlib,
+    html_fragment: Annotated[
+        bool,
+        typer.Option(
+            "--html-fragment", help="Export a chart fragment for an HTML page"
+        ),
+    ] = False,
     open_browser: Annotated[
         bool, typer.Option("--open", help="Open the saved browser chart")
     ] = False,
@@ -539,6 +546,7 @@ def main(
 ) -> None:
     ctx.ensure_object(dict)
     ctx.obj["backend"] = backend.value
+    ctx.obj["html_fragment"] = html_fragment
     ctx.obj["open_browser"] = open_browser
     effective_ratio = ("fit" if interactive else "4:1") if ratio is None else ratio
     ctx.obj["ratio"] = (
@@ -597,6 +605,8 @@ def main(
         protocol = raw_protocol
     ctx.obj["protocol"] = protocol
 
+    if html_fragment and backend != Backend.plotly:
+        raise typer.BadParameter("--html-fragment requires --backend plotly.")
     if backend == Backend.plotly:
         if (
             interactive

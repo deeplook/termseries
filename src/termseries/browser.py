@@ -298,7 +298,8 @@ def render_html(
     period_label: str,
     **options: Any,
 ) -> str:
-    """Serialize a self-contained offline chart, including Plotly.js."""
+    """Serialize an offline document or an embeddable chart with Plotly.js."""
+    html_fragment = options.pop("html_fragment", False)
     fit = options.pop("fit", False)
     fig = build_figure(series, ratio, period_label, **options)
     script = _TICKS
@@ -311,9 +312,12 @@ if (dark) Plotly.relayout(chart, {paper_bgcolor: 'black',
     height = (
         "90vh" if fit else f"max(320px, min(85vh, {100 * ratio[1] / ratio[0]:g}vw))"
     )
-    return str(
+    if html_fragment and not fit:
+        # Container-query units size the embedded chart relative to its host.
+        height = f"max(240px, {100 * ratio[1] / ratio[0]:g}cqw)"
+    html = str(
         fig.to_html(
-            full_html=True,
+            full_html=not html_fragment,
             include_plotlyjs=True,
             default_width="100%",
             default_height=height,
@@ -321,6 +325,14 @@ if (dark) Plotly.relayout(chart, {paper_bgcolor: 'black',
             post_script=script,
         )
     )
+
+    if html_fragment:
+        return (
+            '<div style="container-type:inline-size;width:100%;min-width:0">'
+            + html
+            + "</div>"
+        )
+    return html
 
 
 def output_html(

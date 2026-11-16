@@ -232,3 +232,66 @@ def test_adaptive_time_labels(
         assert any("GMT+1" in label for label in labels)
     else:
         assert all("2026" not in label and "GMT" not in label for label in labels)
+
+
+def test_fragment_has_no_document_wrapper() -> None:
+    import re
+    from html.parser import HTMLParser
+
+    pytest.importorskip("plotly")
+    fragments = [render_html(DATA, (16, 9), "1d", html_fragment=True) for _ in range(2)]
+
+    class Tags(HTMLParser):
+        names: list[str]
+        ids: list[str]
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.names = []
+            self.ids = []
+
+        def handle_starttag(
+            self, tag: str, attrs: list[tuple[str, str | None]]
+        ) -> None:
+            self.names.append(tag)
+            attributes = dict(attrs)
+            if attributes.get("class") == "plotly-graph-div":
+                self.ids.append(str(attributes["id"]))
+
+    parsed = Tags()
+    # The bundle is raw script text, not host markup; avoid scanning it as tags.
+    markup = re.sub(
+        r"<script\b[^>]*>.*?</script\s*>", "", "".join(fragments), flags=re.S
+    )
+    parsed.feed(markup)
+    assert not {"html", "head", "body"}.intersection(parsed.names)
+    assert len(parsed.ids) == len(set(parsed.ids)) == 2
+    assert all("Plotly.newPlot" in fragment for fragment in fragments)
+    assert '<script src="' not in fragments[0]
+    assert "56.25cqw" in fragments[0]
+
+
+def test_cli_fragment_stdout() -> None:
+    pytest.importorskip("plotly")
+    with patch("termseries.cli.fetch_yahoo_series", return_value=DATA):
+        result = CliRunner().invoke(
+            app,
+            [
+                "--backend",
+                "plotly",
+                "--html-fragment",
+                "--output",
+                "-",
+                "yahoo",
+                "FAKE",
+            ],
+        )
+    assert result.exit_code == 0, result.output
+    assert result.stdout.startswith('<div style="container-type:inline-size')
+    assert "Fetching" not in result.stdout
+
+
+def test_fragment_requires_browser_backend() -> None:
+    result = CliRunner().invoke(app, ["--html-fragment", "yahoo", "FAKE"])
+    assert result.exit_code != 0
+    assert "requires" in result.output and "plotly" in result.output

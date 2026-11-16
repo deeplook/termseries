@@ -695,3 +695,33 @@ are recorded in [browser validation](work/browser-validation.md). Large charts e
 all observations and can produce files tens of megabytes in size; no silent
 downsampling is applied. For direct visual comparisons, open
 [the offline example gallery](work/browser-examples.html).
+
+To embed a chart directly in an existing HTML page, export a fragment:
+
+```sh
+termseries --backend plotly --html-fragment --ratio 16:9 --theme light \
+  --output chart-fragment.html yahoo --last 1y AAPL
+```
+
+Insert the file's contents where the chart should appear in the page body, using
+an HTML template or server-side include. A fragment contains the chart's `<div>`
+and executable scripts, with no `<html>`, `<head>` or `<body>` wrapper. Each chart
+gets its own ID. Plotly.js and the observations are included, so it works offline;
+multiple fragments currently include separate copies of the library. Width follows
+the containing element, and the aspect ratio uses that element's width with a
+minimum height of 240 pixels. `--ratio fit` uses 90% of the viewport height.
+Use `--output -` to write the fragment to stdout for a template pipeline.
+
+Scripts must execute for the chart to initialize: include the fragment in the
+HTML document as it is rendered. Assigning the fragment to `innerHTML` alone does
+not execute its scripts. Choose a theme explicitly if the host page needs one.
+
+Alternatively, embed an existing full-page export in an iframe:
+
+```html
+<iframe src="chart.html" title="AAPL price chart"
+        style="width:100%;height:450px;border:0"></iframe>
+```
+
+The chart file must be accessible relative to the host page. Iframes keep the
+chart's scripts and styling separate from the surrounding document.
