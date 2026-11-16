@@ -46,13 +46,9 @@ browser charts and embeddable HTML fragments.
 - Force dark/light theme or inline/file output via environment variables
 
 ### Browser Rendering (optional)
-- Export offline interactive HTML with `--backend plotly` and the `browser` extra
-- Embed chart fragments in existing pages with `--html-fragment`, or use an iframe
-- Render from Python, including indexed stock comparisons — see the [browser and Python guide](docs/browser.md)
 
-### Browser Rendering (optional)
-- Export self-contained, offline HTML with hover, zoom, pan, reset, and legend toggles
-- Embed chart fragments directly in HTML templates or full pages through an iframe
+- Export self-contained, offline HTML with `--backend plotly` and the `browser` extra, including hover, zoom, pan, reset, and legend toggles
+- Embed chart fragments in existing pages with `--html-fragment`, or use an iframe
 - Render from Python, including indexed stock comparisons — see the [browser and Python guide](docs/browser.md)
 
 ### Interactive TUI
