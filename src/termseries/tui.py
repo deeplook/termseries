@@ -198,6 +198,9 @@ def _build_app(
                 yield Input(placeholder="To (blank = now)", id="to-input")
 
         def on_mount(self) -> None:
+            self.call_after_refresh(self._focus_from_input)
+
+        def _focus_from_input(self) -> None:
             self.query_one("#from-input", Input).focus()
 
         def on_input_submitted(self, event: Input.Submitted) -> None:
