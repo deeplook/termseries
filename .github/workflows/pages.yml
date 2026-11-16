@@ -2,9 +2,7 @@ name: Deploy docs
 
 on:
   push:
-    # Publish the initial site without merging the backend branch into main.
-    # Remove the bootstrap branch after the first successful deployment.
-    branches: [main, feat/browser-backend]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -37,9 +35,7 @@ jobs:
           path: site
 
   deploy:
-    if: >-
-      github.event_name != 'pull_request' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/browser-backend')
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:
