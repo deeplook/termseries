@@ -8,10 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- PyPI release publishing with signed provenance attestations through the PyPA Trusted Publishing action
+- TUI screenshot and interactive indexed, gap, and seasonal examples embedded in the documentation guides
 - Searchable MkDocs Material documentation on GitHub Pages, with topic guides, API examples, and the renderer comparison gallery
 
 ### Changed
 - README condensed into installation, quick start, and links to the detailed guides
+
+### Fixed
+- Local MkDocs previews retain the public site URL in canonical links and sitemaps
 
 ## [0.5.0] - 2026-11-16
 

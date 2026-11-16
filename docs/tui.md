@@ -1,5 +1,10 @@
 # Interactive terminal UI
 
+![Termseries TUI with period, ratio, mode, palette and source controls above an indexed comparison chart](assets/termseries-tui.png)
+
+*Programmatic capture of the real TUI and its chart layer, using deterministic
+synthetic demo data rather than historical TSLA/NVDA prices.*
+
 Launch the Textual interface with `-i` or `--interactive`:
 
 ```sh

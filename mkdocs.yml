@@ -1,9 +1,13 @@
 site_name: termseries
 site_description: Time series in the terminal and interactive browser charts
-site_url: https://deeplook.github.io/termseries/
+site_url: &public_site_url https://deeplook.github.io/termseries/
 repo_url: https://github.com/deeplook/termseries
 repo_name: deeplook/termseries
 edit_uri: ""
+
+# Keep public canonical links even when mkdocs serve rewrites site_url locally.
+extra:
+  canonical_site_url: *public_site_url
 
 theme:
   name: material

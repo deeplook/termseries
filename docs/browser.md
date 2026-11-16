@@ -11,6 +11,21 @@ interactive HTML snapshots with hover, zoom, pan, reset, and legend toggles. Fet
 requires whatever connection the source normally uses; the exported HTML works offline.
 Changing the visible range does not fetch additional observations.
 
+## Try the browser charts
+
+These interactive examples reuse the indexed comparison, missing-observation gap,
+and seasonal overlay from the [renderer gallery](gallery.md). Choose a tab, hover
+for exact values, drag to zoom, or toggle a series in the legend. Reset view
+restores the initial comparison. All observations are deterministic synthetic data.
+
+<iframe src="../examples/browser-demos.html"
+        title="Interactive indexed, gap and seasonal chart examples"
+        loading="lazy"
+        style="width:100%;height:650px;border:1px solid #dbe1e8;border-radius:8px;"></iframe>
+
+[Open these examples in a separate page](examples/browser-demos.html), or see the
+[full static-versus-interactive comparison](examples/browser-examples.html).
+
 ## Command line
 
 Options shared by sources go before the source command:
