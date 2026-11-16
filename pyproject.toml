@@ -30,16 +30,21 @@ packages = ["src/termseries"]
 
 [project]
 name = "termseries"
-version = "0.4.0"
-description = "Show timeseries data in the terminal using matplotlib."
+version = "0.5.0"
+description = "Render time series in terminals or as interactive browser charts."
 readme = "README.md"
 authors = [{ name = "Dinu Gherman", email = "gherman@darwin.in-berlin.de" }]
 license = {text = "MIT"}
-keywords = ["terminal", "timeseries", "chart", "matplotlib", "cli"]
+keywords = [
+    "terminal", "timeseries", "chart", "matplotlib", "cli",
+    "plotly", "browser", "interactive", "visualization",
+]
 requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Environment :: Console",
+    "Topic :: Scientific/Engineering :: Visualization",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -86,6 +91,9 @@ docs = [
 Homepage = "https://github.com/deeplook/termseries"
 Repository = "https://github.com/deeplook/termseries"
 Documentation = "https://github.com/deeplook/termseries#readme"
+"Browser guide" = "https://github.com/deeplook/termseries/blob/main/docs/browser.md"
+Changelog = "https://github.com/deeplook/termseries/blob/main/CHANGELOG.md"
+Issues = "https://github.com/deeplook/termseries/issues"
 
 [tool.ruff]
 line-length = 88

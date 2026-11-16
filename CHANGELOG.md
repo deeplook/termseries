@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-16
+
 ### Added
 - Browser/Python usage guide with TSLA/NVDA indexed examples, embedding, sizing, theme options, and gap/seasonal preparation
 - `--html-fragment` exports a self-contained Plotly chart for insertion into an existing HTML page, sized relative to its container

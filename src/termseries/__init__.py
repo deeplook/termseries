@@ -7,7 +7,7 @@ output for standalone pages or embedded charts. See ``termseries --help`` and
 
 from __future__ import annotations
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 from termseries.cli import app, csv_cmd, demo, hass, main
 from termseries.cli import polymarket as polymarket_cmd
