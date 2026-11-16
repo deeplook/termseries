@@ -82,6 +82,22 @@ async def _wait_for_screen_count(pilot: Any, count: int, tries: int = 100) -> No
     )
 
 
+async def _wait_for_focus(pilot: Any, widget_id: str, tries: int = 100) -> None:
+    """Wait for a newly mounted modal's deferred initial focus to settle."""
+    for _ in range(tries):
+        focused = pilot.app.focused
+        if focused is not None and focused.id == widget_id:
+            return
+        await pilot.pause()
+        await asyncio.sleep(0.01)
+    if pilot.app._exception is not None:
+        raise pilot.app._exception
+    focused = pilot.app.focused
+    raise AssertionError(
+        f"focus never reached #{widget_id} after {tries} tries: {focused!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Widget composition
 # ---------------------------------------------------------------------------
@@ -448,12 +464,12 @@ class TestFromToSelect:
                 await pilot.pause()
                 pilot.app.screen.query_one("#from-input", Input).value = "2024-05"
                 pilot.app.screen.query_one("#to-input", Input).value = "2024-06"
-                assert pilot.app.focused.id == "from-input"
+                await _wait_for_focus(pilot, "from-input")
                 # Enter advances through the dialog without relying on mouse
                 # coordinates, which may be outside Windows CI's small viewport.
                 await pilot.press("enter")
                 await pilot.pause()
-                assert pilot.app.focused.id == "to-input"
+                await _wait_for_focus(pilot, "to-input")
                 await pilot.press("enter")
                 await _wait_for_screen_count(pilot, 1)
                 option_values = {v for _, v in pilot.app.query(Select)[0]._options}
@@ -488,10 +504,10 @@ class TestFromToSelect:
                 pilot.app.query(Select)[0].value = _FROM_TO
                 await pilot.pause()
                 pilot.app.screen.query_one("#from-input", Input).value = "2020-01-01"
-                assert pilot.app.focused.id == "from-input"
+                await _wait_for_focus(pilot, "from-input")
                 await pilot.press("enter")
                 await pilot.pause()
-                assert pilot.app.focused.id == "to-input"
+                await _wait_for_focus(pilot, "to-input")
                 await pilot.press("enter")
                 await pilot.pause()
 
@@ -535,10 +551,10 @@ class TestFromToSelect:
                 await pilot.pause()
                 pilot.app.screen.query_one("#from-input", Input).value = "2024-06"
                 pilot.app.screen.query_one("#to-input", Input).value = "2024-05"
-                assert pilot.app.focused.id == "from-input"
+                await _wait_for_focus(pilot, "from-input")
                 await pilot.press("enter")
                 await pilot.pause()
-                assert pilot.app.focused.id == "to-input"
+                await _wait_for_focus(pilot, "to-input")
                 await pilot.press("enter")
                 await _wait_for_screen_count(pilot, 1)
                 assert pilot.app.is_running
