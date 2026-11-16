@@ -1,4 +1,4 @@
-.PHONY: install lint format test coverage docs clean install-tool uninstall-tool docker-build docker-run docker-tui docker-test check-all
+.PHONY: install lint format test coverage docs docs-build clean install-tool uninstall-tool docker-build docker-run docker-tui docker-test check-all
 
 # Allow: make docker-run yahoo TSLA AAPL
 # Allow: make docker-tui yahoo TSLA AAPL
@@ -29,7 +29,10 @@ coverage:
 	uv run pytest --cov=src --cov-report=html --cov-report=term
 
 docs:
-	uv run mkdocs serve
+	uv run --extra docs mkdocs serve
+
+docs-build:
+	uv run --extra docs mkdocs build --strict
 
 clean:
 	rm -rf dist build *.egg-info

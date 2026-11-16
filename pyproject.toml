@@ -83,15 +83,15 @@ dev = [
     "types-requests>=2.31",
 ]
 docs = [
-    "mkdocs>=1.5",
-    "mkdocstrings[python]>=0.24",
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.7.6,<10",
 ]
 
 [project.urls]
 Homepage = "https://github.com/deeplook/termseries"
 Repository = "https://github.com/deeplook/termseries"
-Documentation = "https://github.com/deeplook/termseries#readme"
-"Browser guide" = "https://github.com/deeplook/termseries/blob/main/docs/browser.md"
+Documentation = "https://deeplook.github.io/termseries/"
+"Browser guide" = "https://deeplook.github.io/termseries/browser/"
 Changelog = "https://github.com/deeplook/termseries/blob/main/CHANGELOG.md"
 Issues = "https://github.com/deeplook/termseries/issues"
 

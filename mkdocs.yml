@@ -1,0 +1,85 @@
+site_name: termseries
+site_description: Time series in the terminal and interactive browser charts
+site_url: https://deeplook.github.io/termseries/
+repo_url: https://github.com/deeplook/termseries
+repo_name: deeplook/termseries
+edit_uri: ""
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Get started:
+      - Installation: installation.md
+      - Quick start: getting-started.md
+      - Examples: examples.md
+  - Data sources:
+      - Yahoo Finance: sources/yahoo.md
+      - Polymarket: sources/polymarket.md
+      - CSV files: sources/csv.md
+      - Home Assistant: sources/hass.md
+      - Obsidian: sources/obsidian.md
+      - Fitbit conversion: tools/fitbit.md
+  - Guides:
+      - Chart modes and gaps: modes.md
+      - Seasonal overlays: seasonal.md
+      - Interactive terminal UI: tui.md
+      - Browser charts and Python: browser.md
+      - Renderer gallery: gallery.md
+      - Matplotlib styles: styles.md
+  - Reference:
+      - CLI options: cli.md
+      - Time ranges: time-ranges.md
+      - Configuration: configuration.md
+      - Output: output.md
+      - Validation and performance: validation.md
+  - Project:
+      - Development: development.md
+      - Changelog: changelog.md
+      - License: license.md
+
+hooks:
+  - tools/docs_hooks.py
+
+plugins:
+  - search
+
+markdown_extensions:
+  - tables
+  - fenced_code
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    not_found: warn
+    anchors: warn

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Searchable MkDocs Material documentation on GitHub Pages, with topic guides, API examples, and the renderer comparison gallery
+
+### Changed
+- README condensed into installation, quick start, and links to the detailed guides
+
 ## [0.5.0] - 2026-11-16
 
 ### Added

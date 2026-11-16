@@ -38,3 +38,6 @@ openspec/
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated documentation
+site/

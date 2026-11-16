@@ -202,8 +202,8 @@ A full-page export can instead be embedded using an iframe:
 Serve the chart file at a path the host page can access. An iframe keeps the chart's
 styles and scripts separate. Neither method publishes the chart or starts a server.
 
-See the [offline comparison gallery](../work/browser-examples.html) for actual
+See the [offline comparison gallery](examples/browser-examples.html) for actual
 Matplotlib PNGs beside interactive Plotly charts, and the
-[validation report](../work/browser-validation.md) for measured performance and
+[validation report](validation.md) for measured performance and
 compatibility checks. Large datasets can produce files tens of megabytes in size;
 there is no application-level downsampling or point cap.

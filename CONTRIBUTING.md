@@ -25,3 +25,10 @@ Run `make test` or `make coverage` for coverage report.
 3. Make your changes
 4. Run `make lint` and `make test`
 5. Submit a pull request
+
+## Documentation
+
+Edit the guides in `docs/` and navigation in `mkdocs.yml`. Preview with
+`uv run --extra docs mkdocs serve`; validate with
+`uv run --extra docs mkdocs build --strict`. See
+[the documentation development guide](docs/development.md) for publication details.
