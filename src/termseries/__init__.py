@@ -1,7 +1,8 @@
-"""Render time-series data as wide matplotlib plots.
+"""Render time series as terminal PNGs or optional interactive browser charts.
 
-Supports both a one-shot CLI mode and an interactive Textual TUI.  See
-``termseries --help`` for full usage details.
+Supports a one-shot CLI, an interactive Textual TUI, and optional Plotly HTML
+output for standalone pages or embedded charts. See ``termseries --help`` and
+``docs/browser.md`` for CLI and Python rendering examples.
 """
 
 from __future__ import annotations

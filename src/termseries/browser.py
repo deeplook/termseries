@@ -298,7 +298,20 @@ def render_html(
     period_label: str,
     **options: Any,
 ) -> str:
-    """Serialize an offline document or an embeddable chart with Plotly.js."""
+    """Return an offline HTML document or an embeddable chart with Plotly.js.
+
+    ``series`` maps names to sorted, timezone-aware datetime/value observations.
+    ``ratio`` is an explicit (width, height) aspect ratio and ``period_label``
+    describes the selected period. No data is fetched and no files are written.
+
+    Set ``html_fragment=True`` to omit document wrappers and size the chart
+    relative to its host container. ``fit=True`` uses viewport height instead.
+    Other keyword options are forwarded to :func:`build_figure`, including
+    mode, theme, tz, title, units, line style, legend and initial time bounds.
+
+    Callers prepare temporal gaps and seasonal wrapping before this function;
+    numerical mode transformations are applied by the renderer itself.
+    """
     html_fragment = options.pop("html_fragment", False)
     fit = options.pop("fit", False)
     fig = build_figure(series, ratio, period_label, **options)

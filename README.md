@@ -11,7 +11,9 @@ Show timeseries data in the terminal using matplotlib. Plot stock prices from
 Yahoo Finance, sensor data from Home Assistant, numeric fields from Obsidian
 daily notes, or any numeric timeseries from local CSV files. Renders
 high-quality PNG charts inline (Kitty, iTerm2, Sixel) or saves to file, with
-an optional interactive Textual TUI.
+an optional interactive Textual TUI. An optional Plotly backend exports interactive
+browser charts as standalone HTML or fragments for embedding in other pages. An optional Plotly backend exports interactive
+browser charts and embeddable HTML fragments.
 
 ![termseries yahoo output](https://raw.githubusercontent.com/deeplook/termseries/main/images/termseries-yahoo.png)
 
@@ -42,6 +44,16 @@ an optional interactive Textual TUI.
 - Adaptive vertical calendar dividers (hours, days, months, or years), aligned to `--tz`
 - Auto-detect dark/light terminal background for theme selection
 - Force dark/light theme or inline/file output via environment variables
+
+### Browser Rendering (optional)
+- Export offline interactive HTML with `--backend plotly` and the `browser` extra
+- Embed chart fragments in existing pages with `--html-fragment`, or use an iframe
+- Render from Python, including indexed stock comparisons — see the [browser and Python guide](docs/browser.md)
+
+### Browser Rendering (optional)
+- Export self-contained, offline HTML with hover, zoom, pan, reset, and legend toggles
+- Embed chart fragments directly in HTML templates or full pages through an iframe
+- Render from Python, including indexed stock comparisons — see the [browser and Python guide](docs/browser.md)
 
 ### Interactive TUI
 - Full-screen Textual TUI with dropdowns for period, aspect ratio, mode, and color cycle; "custom…" option in the Period menu for arbitrary values, and "from-to…" for an explicit date range (partial dates like `2024-05` are zero-padded to a full timestamp, rounding From down to the start and To up to the end, same as the CLI's `--from`/`--to`)
@@ -342,7 +354,12 @@ heart-rate exports do not need to fit in memory.
 
 | Option | Description |
 |---|---|
-| `--ratio W:H` | Figure aspect ratio (default: 4:1) |
+| `--backend` | `matplotlib` (default) for terminal/PNG, or optional `plotly` for browser HTML |
+| `--html-fragment` | Export embeddable markup and scripts; requires `--backend plotly` |
+| `--open` | Open the saved browser chart; requires file output and `--backend plotly` |
+| `--ratio W:H` | Figure aspect ratio (default: 4:1); `fit` fills the terminal or uses viewport height for browser output |
+| `--theme` | `light`, `dark`, or `auto` (terminal detection for PNG; browser preference for HTML) |
+| `--output` | `auto`, `inline` (PNG only), `-` (stdout), or a file path |
 | `--mode` | Chart mode: absolute, indexed, log, drawdown, returns, relative, cumulative, delta, seasonal |
 | `--cycle` | Seasonal cycle length: `year`, `quarter`, or a duration (e.g. `1w`, `90d`) — only valid with `--mode seasonal`, defaults to `year` (see [Seasonal Mode](#seasonal-mode)) |
 | `--title` | Custom chart title (default: auto-generated from mode/period/series) |
@@ -725,3 +742,33 @@ Alternatively, embed an existing full-page export in an iframe:
 
 The chart file must be accessible relative to the host page. Iframes keep the
 chart's scripts and styling separate from the surrounding document.
+
+
+### Python API
+
+Fetch and render separately. For example, compare TSLA and NVDA indexed to 100:
+
+```python
+from pathlib import Path
+
+from termseries.browser import render_html
+from termseries.yahoo import fetch_yahoo_series
+
+series = fetch_yahoo_series(["TSLA", "NVDA"], period="1y", interval="1d")
+html = render_html(
+    series,
+    ratio=(16, 9),
+    period_label="1 year",
+    mode="indexed",
+    title="TSLA vs NVDA — indexed to 100",
+    theme="light",
+    tz="America/New_York",
+)
+Path("stocks.html").write_text(html, encoding="utf-8")
+```
+
+Each series starts at 100 using its own first returned observation. Add
+`html_fragment=True` to return markup for an existing page instead of a complete
+document. See the [browser and Python guide](docs/browser.md) for a complete embedded
+report, offline sensor data, rendering options, sizing, backgrounds, and gap/seasonal
+preparation. `render_html` returns a string and performs no fetching or file output.

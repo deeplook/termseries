@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Browser/Python usage guide with TSLA/NVDA indexed examples, embedding, sizing, theme options, and gap/seasonal preparation
 - `--html-fragment` exports a self-contained Plotly chart for insertion into an existing HTML page, sized relative to its container
 - Optional `browser` extra with `--backend plotly` for offline interactive HTML charts, gap handling, timezone-aware labels, and `--open`
 - CI now also runs the test suite on Python 3.14 and 3.15, in addition to 3.10-3.13
