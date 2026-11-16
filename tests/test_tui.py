@@ -448,8 +448,12 @@ class TestFromToSelect:
                 await pilot.pause()
                 pilot.app.screen.query_one("#from-input", Input).value = "2024-05"
                 pilot.app.screen.query_one("#to-input", Input).value = "2024-06"
-                pilot.app.screen.query_one("#to-input", Input).focus()
+                # Use the same focus path as a user. A direct .focus() can
+                # race FromToScreen.on_mount() on Windows, where the modal's
+                # initial focus may be applied after the test's focus call.
+                await pilot.click("#to-input")
                 await pilot.pause()
+                assert pilot.app.focused.id == "to-input"
                 await pilot.press("enter")
                 await _wait_for_screen_count(pilot, 1)
                 option_values = {v for _, v in pilot.app.query(Select)[0]._options}
