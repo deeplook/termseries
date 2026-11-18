@@ -71,7 +71,7 @@ dependencies = [
 termseries = "termseries.__main__:main"
 
 [project.optional-dependencies]
-browser = ["plotly>=6.0,<7", "tzlocal>=5,<6"]
+browser = ["plotly>=6.0,<8", "tzlocal>=5,<6"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=1.0",
